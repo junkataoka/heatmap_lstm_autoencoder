@@ -1,0 +1,46 @@
+
+CommandNotFoundError: Your shell has not been properly configured to use 'conda activate'.
+To initialize your shell, run
+
+    $ conda init <SHELL_NAME>
+
+Currently supported shells are:
+  - bash
+  - fish
+  - tcsh
+  - xonsh
+  - zsh
+  - powershell
+
+See 'conda init --help' for more information and options.
+
+IMPORTANT: You may need to close and restart your shell after running 'conda init'.
+
+
+Traceback (most recent call last):
+  File "preprocess.py", line 50, in <module>
+    a = generate_target("./Output", 81, 15, 6)
+  File "preprocess.py", line 44, in generate_target
+    out[i, j, k, :, :, :] = img
+IndexError: too many indices for array: array is 5-dimensional, but 6 were indexed
+Traceback (most recent call last):
+  File "preprocess.py", line 50, in <module>
+    a = generate_target("./Output", 81, 15, 6)
+  File "preprocess.py", line 44, in generate_target
+    out[i, j, k, :, :, :] = img
+IndexError: too many indices for array: array is 5-dimensional, but 6 were indexed
+srun: error: compute133: tasks 0-1: Exited with exit code 1
+Traceback (most recent call last):
+  File "main.py", line 12, in <module>
+    from data_module import TSDataModule
+  File "/data/home/jkataok1/heatmap_lstm_autoencoder/data_module.py", line 7, in <module>
+    from MovingMNIST import MovingMNIST
+ModuleNotFoundError: No module named 'MovingMNIST'
+Traceback (most recent call last):
+  File "main.py", line 12, in <module>
+    from data_module import TSDataModule
+  File "/data/home/jkataok1/heatmap_lstm_autoencoder/data_module.py", line 7, in <module>
+    from MovingMNIST import MovingMNIST
+ModuleNotFoundError: No module named 'MovingMNIST'
+srun: error: compute133: tasks 0-1: Exited with exit code 1
+/cm/local/apps/slurm-18.08.0-1/var/spool/job4562828/slurm_script:17: command not found: --num_nodes=1

@@ -24,6 +24,7 @@ parser.add_argument('--batch_size', default=12, type=int, help='batch size')
 parser.add_argument('--epochs', type=int, default=300, help='number of epochs to train for')
 parser.add_argument('--use_amp', default=False, type=bool, help='mixed-precision training')
 parser.add_argument('--n_gpus', type=int, default=1, help='number of GPUs')
+parser.add_argument('--num_nodes', type=int, default=1, help='number of nodes')
 parser.add_argument('--n_hidden_dim', type=int, default=64, help='number of hidden dim for ConvLSTM layers')
 
 parser.add_argument('--root', type=str, default="./dataset")
@@ -138,6 +139,7 @@ def run_trainer():
                         gpus=opt.n_gpus,
                         logger=neptune_logger,
                         distributed_backend='ddp',
+                        num_nodes=opt.num_nodes
                     #   early_stop_callback=False,
                     #    fast_dev_run = True
 
