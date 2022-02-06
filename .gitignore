@@ -1,3 +1,5 @@
 dataset/*
 INPUT/*
 Output/*
+checkpoints/*
+bin/*

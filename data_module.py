@@ -4,7 +4,6 @@ from torch.utils.data import Dataset, DataLoader
 import pandas as pd
 import numpy as np
 from PIL import Image
-from MovingMNIST import MovingMNIST
 import pytorch_lightning as pl
 import os
 
@@ -31,7 +30,7 @@ class TSDataModule(pl.LightningDataModule):
     self.target_file = target_file
     self.batch_size = batch_size
 
-  def setup(self, stage_name=None):
+  def setup(self, stage=None):
 
     self.train_data = timeseries(self.root, self.input_file, self.target_file)
 

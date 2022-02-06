@@ -12,8 +12,6 @@ from multiprocessing import Process
 from data_module import TSDataModule
 from lstm_ae import EncoderDecoderConvLSTM
 from pytorch_lightning.loggers import NeptuneLogger
-
-
 import argparse
 
 parser = argparse.ArgumentParser()
@@ -22,10 +20,10 @@ parser.add_argument('--beta_1', type=float, default=0.9, help='decay rate 1')
 parser.add_argument('--beta_2', type=float, default=0.98, help='decay rate 2')
 parser.add_argument('--batch_size', default=12, type=int, help='batch size')
 parser.add_argument('--epochs', type=int, default=300, help='number of epochs to train for')
-parser.add_argument('--use_amp', default=False, type=bool, help='mixed-precision training')
 parser.add_argument('--n_gpus', type=int, default=1, help='number of GPUs')
 parser.add_argument('--num_nodes', type=int, default=1, help='number of nodes')
 parser.add_argument('--n_hidden_dim', type=int, default=64, help='number of hidden dim for ConvLSTM layers')
+parser.add_argument('--log_images', action='store_true', help='Whether to log images')
 
 parser.add_argument('--root', type=str, default="./dataset")
 parser.add_argument('--input_file', type=str, default="input.pt")
@@ -50,33 +48,33 @@ class OvenLightningModule(pl.LightningModule):
         self.model = model
 
         # logging config
-        self.log_images = True
+        self.log_images = self.opt.log_images
 
         # Training config
         self.criterion = torch.nn.MSELoss()
         self.batch_size = self.opt.batch_size
         self.time_steps = self.opt.time_steps
 
-    # def create_video(self, x, y_hat, y):
-    #     # predictions with input for illustration purposes
-    #     preds = torch.cat([x.cpu(), y_hat.unsqueeze(2).cpu()], dim=1)[0]
+    def create_video(self, x, y_hat, y):
+        # predictions with input for illustration purposes
 
-    #     # entire input and ground truth
-    #     y_plot = torch.cat([x.cpu(), y.unsqueeze(2).cpu()], dim=1)[0]
+        input_mn = torch.load("./dataset/input_mn.pt")
+        input_sd = torch.load("./dataset/input_sd.pt")
+        b, t, c, h, w = x.shape
+        x_t = x.cpu() * input_sd.cpu() + input_mn.cpu()
+        x_t = x_t[1, 1, :, :, :]
+        x_grid = torchvision.utils.make_grid(x_t, nrow=t)
 
-    #     # error (l2 norm) plot between pred and ground truth
-    #     difference = (torch.pow(y_hat[0] - y[0], 2)).detach().cpu()
-    #     zeros = torch.zeros(difference.shape)
-    #     difference_plot = torch.cat([zeros.cpu().unsqueeze(0), difference.unsqueeze(0).cpu()], dim=1)[
-    #         0].unsqueeze(1)
+        b, t, c, h, w = y.shape
+        y_t = y[1, :, :, :, :]
+        y_hat_t = y_hat[1, :, :, :, :]
+        y_grid = torchvision.utils.make_grid(y_t.cpu(), nrow=t)
+        y_hat_grid = torchvision.utils.make_grid(y_hat_t.cpu(), nrow=t)
 
-    #     # concat all images
-    #     final_image = torch.cat([preds, y_plot, difference_plot], dim=0)
+        return x_grid, y_grid, y_hat_grid
 
-    #     # make them into a single grid image file
-    #     grid = torchvision.utils.make_grid(final_image, nrow=self.n_steps_past + self.n_steps_ahead)
 
-    #     return grid
+
 
     def forward(self, x):
 
@@ -98,6 +96,26 @@ class OvenLightningModule(pl.LightningModule):
         lr_saved = torch.scalar_tensor(lr_saved).cuda()
 
         # save predicted images every 250 global_step
+        if self.log_images:
+            if self.global_step % 100 == 0:
+                x_grid, y_grid, y_hat_grid = self.create_video(x, y_hat, y)
+                fname = 'epoch_' + str(self.current_epoch) + '_step' + str(self.global_step)
+
+                figure, ax = plt.subplots(1, 1, figsize=(12, 3))
+                ax.imshow(y_hat_grid.permute(1,2,0))
+                figure.suptitle("pred_"+fname, fontsize=16)
+                self.logger.experiment.log_image("pred", figure)
+
+                figure, ax = plt.subplots(1, 1, figsize=(12, 3))
+                ax.imshow(y_grid.permute(1,2,0))
+                figure.suptitle("target_"+fname, fontsize=16)
+                self.logger.experiment.log_image("target", figure)
+
+                figure, ax = plt.subplots(1, 1, figsize=(12, 3))
+                ax.imshow(x_grid.permute(1,2,0))
+                figure.suptitle("input_"+fname, fontsize=16)
+                self.logger.experiment.log_image("input", figure)
+                plt.close()
         
         self.log("recon_loss", loss.item(), on_step=True, on_epoch=True)
         return loss
@@ -147,6 +165,7 @@ def run_trainer():
                       )
 
     trainer.fit(model, datamodule=oven_data)
+    trainer.save_checkpoint("checkpoints/lstm_ac.ckpt")
 
 
 if __name__ == '__main__':
