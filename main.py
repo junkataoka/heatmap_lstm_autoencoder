@@ -24,6 +24,7 @@ parser.add_argument('--n_gpus', type=int, default=1, help='number of GPUs')
 parser.add_argument('--num_nodes', type=int, default=1, help='number of nodes')
 parser.add_argument('--n_hidden_dim', type=int, default=64, help='number of hidden dim for ConvLSTM layers')
 parser.add_argument('--log_images', action='store_true', help='Whether to log images')
+parser.add_argument('--is_distributed', action='store_true', help='Whether to used distributeds dataloader')
 
 parser.add_argument('--root', type=str, default="./dataset")
 parser.add_argument('--input_file', type=str, default="input.pt")
@@ -34,6 +35,7 @@ parser.add_argument('--api_key', type=str,
 
 
 opt = parser.parse_args()
+print(opt)
 
 
 class OvenLightningModule(pl.LightningModule):
@@ -54,6 +56,7 @@ class OvenLightningModule(pl.LightningModule):
         self.criterion = torch.nn.MSELoss()
         self.batch_size = self.opt.batch_size
         self.time_steps = self.opt.time_steps
+        self.epoch = 0
 
     def create_video(self, x, y_hat, y):
         # predictions with input for illustration purposes
@@ -72,9 +75,6 @@ class OvenLightningModule(pl.LightningModule):
         y_hat_grid = torchvision.utils.make_grid(y_hat_t.cpu(), nrow=t)
 
         return x_grid, y_grid, y_hat_grid
-
-
-
 
     def forward(self, x):
 
@@ -97,29 +97,57 @@ class OvenLightningModule(pl.LightningModule):
 
         # save predicted images every 250 global_step
         if self.log_images:
-            if self.global_step % 100 == 0:
-                x_grid, y_grid, y_hat_grid = self.create_video(x, y_hat, y)
-                fname = 'epoch_' + str(self.current_epoch) + '_step' + str(self.global_step)
+            x_grid, y_grid, y_hat_grid = self.create_video(x, y_hat, y)
+            fname = 'epoch_' + str(self.current_epoch+1) + '_step' + str(self.global_step)
 
-                figure, ax = plt.subplots(1, 1, figsize=(12, 3))
-                ax.imshow(y_hat_grid.permute(1,2,0))
-                figure.suptitle("pred_"+fname, fontsize=16)
-                self.logger.experiment.log_image("pred", figure)
+            figure, ax = plt.subplots(1, 1, figsize=(18, 3))
+            ax.imshow(y_hat_grid.permute(1,2,0))
+            figure.suptitle("pred_"+fname, fontsize=16)
+            self.logger.experiment.log_image("pred", figure)
 
-                figure, ax = plt.subplots(1, 1, figsize=(12, 3))
-                ax.imshow(y_grid.permute(1,2,0))
-                figure.suptitle("target_"+fname, fontsize=16)
-                self.logger.experiment.log_image("target", figure)
+            figure, ax = plt.subplots(1, 1, figsize=(18, 3))
+            ax.imshow(y_grid.permute(1,2,0))
+            figure.suptitle("target_"+fname, fontsize=16)
+            self.logger.experiment.log_image("target", figure)
 
-                figure, ax = plt.subplots(1, 1, figsize=(12, 3))
-                ax.imshow(x_grid.permute(1,2,0))
-                figure.suptitle("input_"+fname, fontsize=16)
-                self.logger.experiment.log_image("input", figure)
-                plt.close()
+            figure, ax = plt.subplots(1, 1, figsize=(18, 3))
+            ax.imshow(x_grid.permute(1,2,0))
+            figure.suptitle("input_"+fname, fontsize=16)
+            self.logger.experiment.log_image("input", figure)
+            plt.close()
         
         self.log("recon_loss", loss.item(), on_step=True, on_epoch=True)
+
         return loss
 
+    def validation_step(self, batch, batch_idx):
+
+        x, y = batch
+
+        y_hat = self.forward(x)  # is squeeze neccessary?
+
+        if self.log_images:
+            x_grid, y_grid, y_hat_grid = self.create_video(x, y_hat, y)
+            fname = 'epoch_' + str(self.current_epoch+1) + '_step' + str(self.global_step)
+
+            figure, ax = plt.subplots(1, 1, figsize=(18, 3))
+            ax.imshow(y_hat_grid.permute(1,2,0))
+            figure.suptitle("val_pred_"+fname, fontsize=16)
+            self.logger.experiment.log_image("val_pred", figure)
+
+            figure, ax = plt.subplots(1, 1, figsize=(18, 3))
+            ax.imshow(y_grid.permute(1,2,0))
+            figure.suptitle("val_target_"+fname, fontsize=16)
+            self.logger.experiment.log_image("val_target", figure)
+
+            figure, ax = plt.subplots(1, 1, figsize=(18, 3))
+            ax.imshow(x_grid.permute(1,2,0))
+            figure.suptitle("val_input_"+fname, fontsize=16)
+            self.logger.experiment.log_image("val_input", figure)
+            plt.close()
+
+        loss = self.criterion(y_hat, y)
+        self.log("val_recon_loss", loss.item(), on_step=True, on_epoch=True)
 
     def test_step(self, batch, batch_idx):
         # OPTIONAL
@@ -145,7 +173,7 @@ def run_trainer():
     conv_lstm_model = EncoderDecoderConvLSTM(nf=opt.n_hidden_dim, in_chan=4)
 
     model =OvenLightningModule(opt, model=conv_lstm_model)
-    oven_data = TSDataModule(opt.root, opt.input_file, opt.target_file, opt.batch_size)
+    oven_data = TSDataModule(opt, opt.root, opt.input_file, opt.target_file, opt.batch_size)
     neptune_logger = NeptuneLogger(
             api_key=opt.api_key,
                 project_name='junkataoka/heatmap',
@@ -156,7 +184,7 @@ def run_trainer():
     trainer = Trainer(max_epochs=opt.epochs,
                         gpus=opt.n_gpus,
                         logger=neptune_logger,
-                        distributed_backend='ddp',
+                        accelerator='ddp',
                         num_nodes=opt.num_nodes
                     #   early_stop_callback=False,
                     #    fast_dev_run = True
