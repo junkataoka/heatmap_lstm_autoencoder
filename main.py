@@ -33,6 +33,8 @@ parser.add_argument('--time_steps', type=int, default=15)
 parser.add_argument('--api_key', type=str, 
                     default="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiIwOTE0MGFjYy02NzMwLTRkODQtYTU4My1lNjk0YWEzODM3MGIifQ==")
 
+parser.add_argument('--model_path', type=str, default="checkpoints/lstm_ac.ckpt")
+parser.add_argument('--test', action='store_true', help='Whether to test')
 
 opt = parser.parse_args()
 print(opt)
@@ -57,6 +59,7 @@ class OvenLightningModule(pl.LightningModule):
         self.batch_size = self.opt.batch_size
         self.time_steps = self.opt.time_steps
         self.epoch = 0
+        self.step = 0
 
     def create_video(self, x, y_hat, y):
         # predictions with input for illustration purposes
@@ -150,9 +153,12 @@ class OvenLightningModule(pl.LightningModule):
         self.log("val_recon_loss", loss.item(), on_step=True, on_epoch=True)
 
     def test_step(self, batch, batch_idx):
+        self.step += 1
         # OPTIONAL
         x, y = batch
         y_hat = self.forward(x)
+        self.log("test_loss", self.criterion(y_hat, y), on_step=True, on_epoch=True)
+
         return {'test_loss': self.criterion(y_hat, y)}
 
 
@@ -172,7 +178,6 @@ class OvenLightningModule(pl.LightningModule):
 def run_trainer():
     conv_lstm_model = EncoderDecoderConvLSTM(nf=opt.n_hidden_dim, in_chan=4)
 
-    model =OvenLightningModule(opt, model=conv_lstm_model)
     oven_data = TSDataModule(opt, opt.root, opt.input_file, opt.target_file, opt.batch_size)
     neptune_logger = NeptuneLogger(
             api_key=opt.api_key,
@@ -181,19 +186,34 @@ def run_trainer():
                             #tags=['pytorch-lightning', 'mlp']  # Optional,
                             )
 
-    trainer = Trainer(max_epochs=opt.epochs,
-                        gpus=opt.n_gpus,
-                        logger=neptune_logger,
-                        accelerator='ddp',
-                        num_nodes=opt.num_nodes
-                    #   early_stop_callback=False,
-                    #    fast_dev_run = True
+    if opt.test:
+        trainer = Trainer(max_epochs=1,
+                            gpus=opt.n_gpus,
 
 
-                      )
+                          )
 
-    trainer.fit(model, datamodule=oven_data)
-    trainer.save_checkpoint("checkpoints/lstm_ac.ckpt")
+        model =OvenLightningModule.load_from_checkpoint(checkpoint_path=f"{opt.model_path}")
+        trainer.test(model, datamodule=oven_data)
+        input = torch.load("dataset/target.pt")
+        out = model(input)
+        out.save("dataset/pred.pt")
+
+    else:
+        trainer = Trainer(max_epochs=opt.epochs,
+                            gpus=opt.n_gpus,
+                            logger=neptune_logger,
+                            accelerator='ddp',
+                            num_nodes=opt.num_nodes
+                        #   early_stop_callback=False,
+                        #    fast_dev_run = True
+
+
+                          )
+
+        model =OvenLightningModule(opt, model=conv_lstm_model)
+        trainer.fit(model, datamodule=oven_data)
+        trainer.save_checkpoint("checkpoints/lstm_ac.ckpt")
 
 
 if __name__ == '__main__':

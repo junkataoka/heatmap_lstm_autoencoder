@@ -13,6 +13,6 @@ conda activate cyclegan
 module load cuda11.1/toolkit/11.1.1
 
 srun python preprocess.py
-srun python main.py --n_gpus=2 --num_nodes=2 --batch_size=18 --epochs=300 --log_images --is_distributed
+srun python main.py --n_gpus=2 --num_nodes=2 --batch_size=16 --epochs=300 --log_images --is_distributed
 
 
