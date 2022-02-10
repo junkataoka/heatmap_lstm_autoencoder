@@ -1,7 +1,5 @@
 import torch.nn as nn
 import torch
-from math import floor
-
 
 class ConvLSTMCell(nn.Module):
 

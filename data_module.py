@@ -4,7 +4,6 @@ from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.distributed import DistributedSampler
 import pandas as pd
 import numpy as np
-from PIL import Image
 import pytorch_lightning as pl
 import os
 
