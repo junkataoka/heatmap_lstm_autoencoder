@@ -51,16 +51,16 @@ class TSDataModule(pl.LightningDataModule):
 
   def val_dataloader(self):
     if self.opt.is_distributed:
-      val_sampler = DistributedSampler(self.val_set, shuffle=True, drop_last=True)
+      val_sampler = DistributedSampler(self.val_set, shuffle=False, drop_last=False)
     else: val_sampler = None
 
-    return DataLoader(self.val_set, batch_size=self.batch_size, shuffle=val_sampler is None, sampler=val_sampler)
+    return DataLoader(self.val_set, batch_size=self.batch_size, shuffle=False, sampler=val_sampler)
 
   def test_dataloader(self):
     if self.opt.is_distributed:
-      test_sampler = DistributedSampler(self.data, shuffle=False, drop_last=False)
+      test_sampler = DistributedSampler(self.val_set, shuffle=False, drop_last=False)
     else: test_sampler = None
 
-    return DataLoader(self.data, batch_size=self.batch_size, shuffle=False, sampler=test_sampler)
+    return DataLoader(self.val_set, batch_size=self.batch_size, shuffle=False, sampler=test_sampler)
 
   

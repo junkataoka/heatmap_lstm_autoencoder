@@ -53,7 +53,7 @@ class EncoderDecoderConvLSTM(nn.Module):
 
         # encoder
         for t in range(seq_len):
-            h_t, c_t = self.encoder_1_convlstm(input_tensor=x[:, t, :, :],
+            h_t, c_t = self.encoder_1_convlstm(input_tensor=x[:, t, :, :, :],
                                                cur_state=[h_t, c_t])  # we could concat to provide skip conn here
             h_t2, c_t2 = self.encoder_2_convlstm(input_tensor=h_t,
                                                  cur_state=[h_t2, c_t2])  # we could concat to provide skip conn here
@@ -73,7 +73,6 @@ class EncoderDecoderConvLSTM(nn.Module):
         outputs = torch.stack(outputs, 1)
         outputs = outputs.permute(0, 2, 1, 3, 4)
         outputs = self.decoder_CNN(outputs)
-        outputs = torch.nn.Sigmoid()(outputs)
         outputs = outputs.permute(0, 2, 1, 3, 4)
 
         return outputs
@@ -100,9 +99,3 @@ class EncoderDecoderConvLSTM(nn.Module):
         outputs = self.autoencoder(x, seq_len, future_step, h_t, c_t, h_t2, c_t2, h_t3, c_t3, h_t4, c_t4)
 
         return outputs
-# %%
-tensor = torch.load("dataset/input.pt").float()
-# %%
-model = EncoderDecoderConvLSTM(3, 4)
-out = model(tensor, future_step=15)
-print(out.shape)

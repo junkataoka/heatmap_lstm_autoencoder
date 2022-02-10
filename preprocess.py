@@ -8,6 +8,7 @@ import torch
 import torch.nn as nn
 from models import ConvLSTMCell
 import os
+import numpy as np
 
 class args:
     num_recipe =81 
@@ -49,28 +50,19 @@ def generate_target(root, num_recipe, seq_len, num_geom):
                 out[i, j, k, :, :, :] = img
     return out
 
-#%%
-#%%
 if not os.path.exists("dataset/target.pt"):
     print("Generating target data")
     a = generate_target("./Output", num_recipe=args.num_recipe, seq_len=args.seq_len, num_geom=args.num_geom)
     target_tensor = torch.tensor(a)
     target_tensor = target_tensor.view(args.num_recipe*args.num_geom, args.seq_len, 1, 50, 50)
-    mx = torch.max(target_tensor)
-    mn = torch.min(target_tensor)
-    target_tensor = (target_tensor - mn) / (mx - mn)
-    torch.save(mn, "./dataset/target_mn.pt")
-    torch.save(mx, "./dataset/target_mx.pt")
     torch.save(target_tensor, "./dataset/target.pt")
-#%%
+
 if not os.path.exists("dataset/input.pt"):
     print("Generating input data")
     a = generate_input("./INPUT", num_recipe=args.num_recipe, num_area=args.num_area, num_geom=args.num_geom)
     target_tensor = torch.tensor(a)
     target_tensor = target_tensor.view(args.num_recipe*args.num_geom, args.num_area, 4, 50, 50)
-    mn = torch.mean(target_tensor, 0, keepdim=True)
-    sd = torch.std(target_tensor, 0, keepdim=True)
-    target_tensor = (target_tensor - mn + 1e-5) / (sd+1e-5)
-    torch.save(mn, "./dataset/input_mn.pt")
-    torch.save(sd, "./dataset/input_sd.pt")
+    mean = torch.mean(target_tensor, dim=(0, 3, 4), keepdim=True)
+    sd = torch.std(target_tensor, dim=(0, 3, 4), keepdim=True)
+    target_tensor = (target_tensor - mean + 1e-5) / (sd + 1e-5)
     torch.save(target_tensor, "./dataset/input.pt")
