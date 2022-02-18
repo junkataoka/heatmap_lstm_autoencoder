@@ -25,13 +25,13 @@ for idx, path in enumerate(pred_paths):
     tar_l.append(tar_tensor)
     tar_tensor = tar_tensor.view(15, 50, 50)
 
-    for i in range(pred_tensor.size(0)):
-        pred = pred_tensor[i]
-        tar = tar_tensor[i]
-        tar_df = pd.DataFrame(tar.numpy())
-        tar_df.to_csv(f"Target/{idx}_{i}.csv", index=False)
-        pred_df = pd.DataFrame(pred.numpy())
-        pred_df.to_csv(f"Pred/{idx}_{i}.csv", index=False)
+    # for i in range(pred_tensor.size(0)):
+    #     pred = pred_tensor[i]
+    #     tar = tar_tensor[i]
+    #     tar_df = pd.DataFrame(tar.numpy())
+    #     tar_df.to_csv(f"Target/{idx}_{i}.csv", index=False)
+    #     pred_df = pd.DataFrame(pred.numpy())
+    #     pred_df.to_csv(f"Pred/{idx}_{i}.csv", index=False)
 
 #%%
 target = torch.stack(tar_l, dim=0)
@@ -49,9 +49,15 @@ plt.savefig("Figure/area_error.png", dpi=300)
 #%%
 plt.figure(figsize=(12, 8))
 plt.bar(torch.arange(1,16), step_error)
-plt.ylabel("Mean Aboslute Difference")
+plt.ylabel("Mean Aboslute Difference", fontsize=16)
 plt.yticks(fontsize=16)
 plt.xlabel("Time Step", fontsize=16)
 plt.xticks(fontsize=16)
 plt.savefig("Figure/step_error.png", dpi=300)
 # %%
+plt.figure(figsize=(12, 8))
+plt.imshow(prediction[0, 0, 0, 0, :, :])
+plt.xticks([]),plt.yticks([])
+# %%
+plt.imshow(target[0, 0, 0, 0, :, :])
+plt.xticks([]),plt.yticks([])

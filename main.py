@@ -64,20 +64,20 @@ class OvenLightningModule(pl.LightningModule):
         self.epoch = 0
         self.step = 0
 
-    def create_video(self, x, y_hat, y):
+    # def create_video(self, x, y_hat, y):
 
-        b, t, c, h, w = x.shape
-        x_t = x.cpu()
-        x_t = x_t[1, 1, :, :, :]
-        x_grid = torchvision.utils.make_grid(x_t, nrow=t)
+    #     b, t, c, h, w = x.shape
+    #     x_t = x.cpu()
+    #     x_t = x_t[1, 1, :, :, :]
+    #     x_grid = torchvision.utils.make_grid(x_t, nrow=t)
 
-        b, t, c, h, w = y.shape
-        y_t = y[1, :, :, :, :]
-        y_hat_t = y_hat[1, :, :, :, :]
-        y_grid = torchvision.utils.make_grid(y_t.cpu(), nrow=t)
-        y_hat_grid = torchvision.utils.make_grid(y_hat_t.cpu(), nrow=t)
+    #     b, t, c, h, w = y.shape
+    #     y_t = y[1, :, :, :, :]
+    #     y_hat_t = y_hat[1, :, :, :, :]
+    #     y_grid = torchvision.utils.make_grid(y_t.cpu(), nrow=t)
+    #     y_hat_grid = torchvision.utils.make_grid(y_hat_t.cpu(), nrow=t)
 
-        return x_grid, y_grid, y_hat_grid
+    #     return x_grid, y_grid, y_hat_grid
 
     def forward(self, x):
 
@@ -96,30 +96,30 @@ class OvenLightningModule(pl.LightningModule):
         self.log("recon_loss", loss.item(), on_step=False, on_epoch=True)
         self.log("avg_diff", avg_diff.item(), on_step=False, on_epoch=True)
 
-        if self.log_images:
-            x_grid, y_grid, y_hat_grid = self.create_video(x, y_hat, y)
-            fname = 'epoch_' + str(self.current_epoch+1) + '_step' + str(self.global_step)
+        # if self.log_images:
+        #     x_grid, y_grid, y_hat_grid = self.create_video(x, y_hat, y)
+        #     fname = 'epoch_' + str(self.current_epoch+1) + '_step' + str(self.global_step)
 
-            figure, ax = plt.subplots(1, 1, figsize=(18, 3))
-            ax.imshow(y_hat_grid.permute(1,2,0))
-            figure.suptitle("pred_"+fname, fontsize=16)
-            self.logger.experiment.log_image("pred", figure)
-            plt.clf()
-            plt.cla()
+        #     figure, ax = plt.subplots(1, 1, figsize=(18, 3))
+        #     ax.imshow(y_hat_grid.permute(1,2,0))
+        #     figure.suptitle("pred_"+fname, fontsize=16)
+        #     self.logger.experiment.log_image("pred", figure)
+        #     plt.clf()
+        #     plt.cla()
 
-            figure, ax = plt.subplots(1, 1, figsize=(18, 3))
-            ax.imshow(y_grid.permute(1,2,0))
-            figure.suptitle("target_"+fname, fontsize=16)
-            self.logger.experiment.log_image("target", figure)
-            plt.clf()
-            plt.cla()
+        #     figure, ax = plt.subplots(1, 1, figsize=(18, 3))
+        #     ax.imshow(y_grid.permute(1,2,0))
+        #     figure.suptitle("target_"+fname, fontsize=16)
+        #     self.logger.experiment.log_image("target", figure)
+        #     plt.clf()
+        #     plt.cla()
 
-            figure, ax = plt.subplots(1, 1, figsize=(18, 3))
-            ax.imshow(x_grid.permute(1,2,0))
-            figure.suptitle("input_"+fname, fontsize=16)
-            self.logger.experiment.log_image("input", figure)
-            plt.clf()
-            plt.cla()
+        #     figure, ax = plt.subplots(1, 1, figsize=(18, 3))
+        #     ax.imshow(x_grid.permute(1,2,0))
+        #     figure.suptitle("input_"+fname, fontsize=16)
+        #     self.logger.experiment.log_image("input", figure)
+        #     plt.clf()
+        #     plt.cla()
 
         return loss
 
@@ -160,7 +160,7 @@ def run_trainer():
     else:
         if opt.retrain:
             print("Retraining...")
-            model =OvenLightningModule.load_from_checkpoint(checkpoint_path=f"{opt.model_path}")
+            model = OvenLightningModule.load_from_checkpoint(checkpoint_path=f"{opt.model_path}")
             model.opt = opt
         else:
             model =OvenLightningModule(opt, model=conv_lstm_model)
