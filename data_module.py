@@ -6,16 +6,17 @@ import pandas as pd
 import numpy as np
 import pytorch_lightning as pl
 import os
+from glob import glob
 
 class timeseries(Dataset):
   def __init__(self, root, input_file, target_file):
-    self.input = torch.load(os.path.join(root, input_file)).float()
-    self.target = torch.load(os.path.join(root, target_file)).float()
-    self.len = self.input.shape[0]
+    self.input_path = glob(os.path.join(root, input_file, "/*"))
+    self.target_path = os.path.join(root, target_file, "/*")
+    self.len = len(self.input_path)
 
   def __getitem__(self, idx):
-    input_tensor = self.input[idx]
-    target_tensor = self.target[idx]
+    input_tensor = torch.load(self.input[idx])
+    target_tensor = torch.load(self.target[idx])
 
     return input_tensor, target_tensor
 

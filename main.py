@@ -28,8 +28,10 @@ parser.add_argument('--log_images', action='store_true', help='Whether to log im
 parser.add_argument('--is_distributed', action='store_true', help='Whether to used distributeds dataloader')
 
 parser.add_argument('--root', type=str, default="./dataset")
-parser.add_argument('--input_file', type=str, default="input.pt")
-parser.add_argument('--target_file', type=str, default="./target.pt")
+parser.add_argument('--src_input_file', type=str, default="src_input")
+parser.add_argument('--src_target_file', type=str, default="src_target")
+parser.add_argument('--tar_input_file', type=str, default="tar_input")
+parser.add_argument('--tar_target_file', type=str, default="tar_target")
 parser.add_argument('--time_steps', type=int, default=15)
 
 
