@@ -28,10 +28,10 @@ parser.add_argument('--log_images', action='store_true', help='Whether to log im
 parser.add_argument('--is_distributed', action='store_true', help='Whether to used distributeds dataloader')
 
 parser.add_argument('--root', type=str, default="./dataset")
-parser.add_argument('--src_input_file', type=str, default="src_input")
-parser.add_argument('--src_target_file', type=str, default="src_target")
-parser.add_argument('--tar_input_file', type=str, default="tar_input")
-parser.add_argument('--tar_target_file', type=str, default="tar_target")
+parser.add_argument('--src_input_file', type=str, default="source_input.pt")
+parser.add_argument('--src_target_file', type=str, default="source_target.pt")
+parser.add_argument('--tar_input_file', type=str, default="target_input.pt")
+parser.add_argument('--tar_target_file', type=str, default="sp_target_target.pt")
 parser.add_argument('--time_steps', type=int, default=15)
 
 
@@ -39,7 +39,7 @@ parser.add_argument('--model_path', type=str, default="checkpoints/lstm_ac.ckpt"
 parser.add_argument('--test', action='store_true', help='Whether to test')
 parser.add_argument('--retrain', action='store_true', help='Whether to retrain the model or not')
 parser.add_argument('--neptune_logger', action='store_true', help='Whether to use neptune.ai logger')
-parser.add_argument('--api_key', type=str, 
+parser.add_argument('--api_key', type=str,
                     default="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiIwOTE0MGFjYy02NzMwLTRkODQtYTU4My1lNjk0YWEzODM3MGIifQ==")
 
 opt = parser.parse_args()
@@ -84,45 +84,40 @@ class OvenLightningModule(pl.LightningModule):
 
     def forward(self, x):
 
-        output, _ = self.model(x, future_step=self.time_steps)
+        output, dcl_output = self.model(x, future_step=self.time_steps)
 
-        return output
+        return output, dcl_output
 
     def training_step(self, batch, batch_idx):
 
-        src_x, src_y = batch["src"]
-        tar_x, tar_y = batch["tar"]
+        src_batch = batch[0]
+        tar_batch = batch[1]
+        (src_x, src_y) = src_batch
+        (tar_x, tar_y) = tar_batch
 
         src_y_hat, src_dcl_y_hat = self.forward(src_x)
         tar_y_hat, tar_dcl_y_hat = self.forward(tar_x)
 
-        src_label = torch.zeros(src_x.shape[0]).cuda()
-        tar_label = torch.ones(tar_x.shape[0]).cuda()
+        src_label = torch.zeros(src_x.shape[0]).long().cuda()
+        tar_label = torch.ones(tar_x.shape[0]).long().cuda()
 
         src_loss = self.criterion(src_y_hat, src_y)
         tar_loss = self.criterion(tar_y_hat, tar_y)
         src_dcl_loss =self.dcl_criterion(src_dcl_y_hat, src_label)
         tar_dcl_loss =self.dcl_criterion(tar_dcl_y_hat, tar_label)
 
-        avg_diff_src_tar = torch.mean(torch.abs(src_y_hat - tar_y))
         avg_diff_src_src = torch.mean(torch.abs(src_y_hat - src_y))
 
-        avg_diff_tar_src = torch.mean(torch.abs(tar_y_hat - src_y))
         avg_diff_tar_tar = torch.mean(torch.abs(tar_y_hat - tar_y))
-
-        avg_diff_tar_src_hat = torch.mean(torch.abs(tar_y_hat - src_y_hat))
 
         self.log("src_loss", src_loss.item(), on_step=False, on_epoch=True)
         self.log("tar_loss", tar_loss.item(), on_step=False, on_epoch=True)
         self.log("src_dcl_loss", src_dcl_loss.item(), on_step=False, on_epoch=True)
         self.log("tar_dcl_loss", tar_dcl_loss.item(), on_step=False, on_epoch=True)
 
-        self.log("avg_diff_src_tar", avg_diff_src_tar.item(), on_step=False, on_epoch=True)
         self.log("avg_diff_src_src", avg_diff_src_src.item(), on_step=False, on_epoch=True)
 
         self.log("avg_diff_tar_tar", avg_diff_tar_tar.item(), on_step=False, on_epoch=True)
-        self.log("avg_diff_tar_src", avg_diff_tar_src.item(), on_step=False, on_epoch=True)
-        self.log("avg_diff_tar_src_hat", avg_diff_tar_src_hat.item(), on_step=False, on_epoch=True)
 
         # if self.log_images:
         #     x_grid, y_grid, y_hat_grid = self.create_video(x, y_hat, y)
@@ -148,44 +143,49 @@ class OvenLightningModule(pl.LightningModule):
         #     self.logger.experiment.log_image("input", figure)
         #     plt.clf()
         #     plt.cla()
+        loss = src_dcl_loss + tar_dcl_loss + src_loss + tar_loss
 
         return loss
 
-    def validation_step(self, batch, batch_idx):
+    def validation_step(self, batch, batch_idx, dataloader_idx):
 
-        src_x, src_y = batch["src"]
-        tar_x, tar_y = batch["tar"]
+        # src_batch = batch[0]
+        # tar_batch = batch[1]
+        # src_x, src_y = src_batch
+        # tar_x, tar_y = tar_batch
 
-        src_y_hat, src_dcl_y_hat = self.forward(src_x)
-        tar_y_hat, tar_dcl_y_hat = self.forward(tar_x)
+        # src_y_hat, src_dcl_y_hat = self.forward(src_x)
+        # tar_y_hat, tar_dcl_y_hat = self.forward(tar_x)
 
-        src_label = torch.zeros(src_x.shape[0]).cuda()
-        tar_label = torch.ones(tar_x.shape[0]).cuda()
+        # src_label = torch.zeros(src_x.shape[0]).cuda()
+        # tar_label = torch.ones(tar_x.shape[0]).cuda()
 
-        src_loss = self.criterion(src_y_hat, src_y)
-        tar_loss = self.criterion(tar_y_hat, tar_y)
-        src_dcl_loss =self.dcl_criterion(src_dcl_y_hat, src_label)
-        tar_dcl_loss =self.dcl_criterion(tar_dcl_y_hat, tar_label)
+        # src_loss = self.criterion(src_y_hat, src_y)
+        # tar_loss = self.criterion(tar_y_hat, tar_y)
+        # src_dcl_loss =self.dcl_criterion(src_dcl_y_hat, src_label)
+        # tar_dcl_loss =self.dcl_criterion(tar_dcl_y_hat, tar_label)
 
-        avg_diff_src_tar = torch.mean(torch.abs(src_y_hat - tar_y))
-        avg_diff_src_src = torch.mean(torch.abs(src_y_hat - src_y))
+        # avg_diff_src_tar = torch.mean(torch.abs(src_y_hat - tar_y))
+        # avg_diff_src_src = torch.mean(torch.abs(src_y_hat - src_y))
 
-        avg_diff_tar_src = torch.mean(torch.abs(tar_y_hat - src_y))
-        avg_diff_tar_tar = torch.mean(torch.abs(tar_y_hat - tar_y))
+        # avg_diff_tar_src = torch.mean(torch.abs(tar_y_hat - src_y))
+        # avg_diff_tar_tar = torch.mean(torch.abs(tar_y_hat - tar_y))
 
-        avg_diff_tar_src_hat = torch.mean(torch.abs(tar_y_hat - src_y_hat))
+        # avg_diff_tar_src_hat = torch.mean(torch.abs(tar_y_hat - src_y_hat))
 
-        self.log("val_src_loss", src_loss.item(), on_step=False, on_epoch=True)
-        self.log("val_tar_loss", tar_loss.item(), on_step=False, on_epoch=True)
-        self.log("val_src_dcl_loss", src_dcl_loss.item(), on_step=False, on_epoch=True)
-        self.log("val_tar_dcl_loss", tar_dcl_loss.item(), on_step=False, on_epoch=True)
+        # self.log("val_src_loss", src_loss.item(), on_step=False, on_epoch=True)
+        # self.log("val_tar_loss", tar_loss.item(), on_step=False, on_epoch=True)
+        # self.log("val_src_dcl_loss", src_dcl_loss.item(), on_step=False, on_epoch=True)
+        # self.log("val_tar_dcl_loss", tar_dcl_loss.item(), on_step=False, on_epoch=True)
 
-        self.log("val_avg_diff_src_tar", avg_diff_src_tar.item(), on_step=False, on_epoch=True)
-        self.log("val_avg_diff_src_src", avg_diff_src_src.item(), on_step=False, on_epoch=True)
+        # self.log("val_avg_diff_src_tar", avg_diff_src_tar.item(), on_step=False, on_epoch=True)
+        # self.log("val_avg_diff_src_src", avg_diff_src_src.item(), on_step=False, on_epoch=True)
 
-        self.log("val_avg_diff_tar_tar", avg_diff_tar_tar.item(), on_step=False, on_epoch=True)
-        self.log("val_avg_diff_tar_src", avg_diff_tar_src.item(), on_step=False, on_epoch=True)
-        self.log("val_avg_diff_tar_src_hat", avg_diff_tar_src_hat.item(), on_step=False, on_epoch=True)
+        # self.log("val_avg_diff_tar_tar", avg_diff_tar_tar.item(), on_step=False, on_epoch=True)
+        # self.log("val_avg_diff_tar_src", avg_diff_tar_src.item(), on_step=False, on_epoch=True)
+        # self.log("val_avg_diff_tar_src_hat", avg_diff_tar_src_hat.item(), on_step=False, on_epoch=True)
+        return None
+
 
 
     def configure_optimizers(self):
@@ -194,7 +194,7 @@ class OvenLightningModule(pl.LightningModule):
 def run_trainer():
     conv_lstm_model = EncoderDecoderConvLSTM(nf=opt.n_hidden_dim, in_chan=4)
 
-    oven_data = TSDataModule(opt, opt.root, opt.src_input_file, opt.src_target_file, opt.tar_input_File, opt.tar_target_file, opt.batch_size)
+    oven_data = TSDataModule(opt, opt.root, opt.src_input_file, opt.src_target_file, opt.tar_input_file, opt.tar_target_file, opt.batch_size)
     if opt.neptune_logger:
         logger = NeptuneLogger(
                 api_key=opt.api_key,

@@ -11,10 +11,11 @@ from models import ConvLSTMCell
 from torch.autograd import Function
 
 class EncoderDecoderConvLSTM(nn.Module):
+
     def __init__(self, nf, in_chan):
         super(EncoderDecoderConvLSTM, self).__init__()
 
-        """ ARCHITECTURE 
+        """ ARCHITECTURE
 
         # Encoder (ConvLSTM)
         # Encoder Vector (final hidden state of encoder)
@@ -48,7 +49,7 @@ class EncoderDecoderConvLSTM(nn.Module):
                                      padding=(0, 1, 1))
 
         self.domain_classifier = nn.Sequential()
-        self.domain_classifier.add_module('d_fc1', nn.Linear(nf))
+        self.domain_classifier.add_module('d_fc1', nn.Linear(64*50*50, 100))
         self.domain_classifier.add_module('d_bn1', nn.BatchNorm1d(100))
         self.domain_classifier.add_module('d_relu1', nn.ReLU(True))
         self.domain_classifier.add_module('d_fc2', nn.Linear(100, 2))
@@ -67,7 +68,9 @@ class EncoderDecoderConvLSTM(nn.Module):
 
         # encoder_vector
         encoder_vector = h_t2
-        reverse_encoder_vector = ReverseLayerF.apply(encoder_vector, alpha=1.0)
+        b, c, h, w = encoder_vector.shape
+
+        reverse_encoder_vector = ReverseLayerF.apply(encoder_vector.view(b, -1), 1.0)
         domain_outputs = self.domain_classifier(reverse_encoder_vector)
 
         # decoder
@@ -94,7 +97,6 @@ class EncoderDecoderConvLSTM(nn.Module):
         input_tensor:
             5-D Tensor of shape (b, t, c, h, w)        #   batch, time, channel, height, width
         """
-
         # find size of different input dimensions
         b, seq_len, _, h, w = x.size()
 
@@ -108,6 +110,7 @@ class EncoderDecoderConvLSTM(nn.Module):
         outputs, encorded_vector = self.autoencoder(x, seq_len, future_step, h_t, c_t, h_t2, c_t2, h_t3, c_t3, h_t4, c_t4)
 
         return outputs, encorded_vector
+
 class ReverseLayerF(Function):
 
     @staticmethod

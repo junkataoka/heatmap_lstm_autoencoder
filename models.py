@@ -35,14 +35,14 @@ class ConvLSTMCell(nn.Module):
                               padding=self.padding,
                               bias=self.bias)
 
-        self.layernorm = nn.LayerNorm(normalized_shape=(self.input_dim, 
+        self.layernorm = nn.LayerNorm(normalized_shape=(self.input_dim,
                                                         50, 50))
-                                                        
+
 
     def forward(self, input_tensor, cur_state):
         h_cur, c_cur = cur_state
 
-        input_tensor = self.layernorm(input_tensor)
+        # input_tensor = self.layernorm(input_tensor)
         combined = torch.cat([input_tensor, h_cur], dim=1)  # concatenate along channel axis
         combined_conv = self.conv(combined)
         cc_i, cc_f, cc_o, cc_g = torch.split(combined_conv, self.hidden_dim, dim=1)
