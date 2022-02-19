@@ -23,43 +23,73 @@ class timeseries(Dataset):
     return self.len
   
 class TSDataModule(pl.LightningDataModule):
-  def __init__(self, opt, root: str, input_file, target_file, batch_size):
+  def __init__(self, opt, root: str, src_input_file, src_target_file, tar_input_file, tar_target_file, batch_size):
     super(TSDataModule, self).__init__()
     self.opt = opt
     self.root = root
-    self.input_file = input_file
-    self.target_file = target_file
+    self.src_input_file = src_input_file
+    self.src_target_file = src_target_file
+    self.tar_input_file = tar_input_file
+    self.tar_target_file = tar_target_file
     self.batch_size = batch_size
 
   def setup(self, stage=None):
 
-
-    self.data = timeseries(self.root, self.input_file, self.target_file)
-    train_set_size = int(len(self.data) * 0.8)
-    val_set_size = len(self.data) - train_set_size 
-    self.train_set, self.val_set = torch.utils.data.random_split(self.data, [train_set_size, val_set_size])
+    self.src_data = timeseries(self.root, self.src_input_file, self.src_target_file)
+    self.tar_data = timeseries(self.root, self.tar_input_file, self.tar_target_file)
+    # train_set_size = int(len(self.data) * 0.8)
+    # val_set_size = len(self.data) - train_set_size 
+    # self.train_set, self.val_set = torch.utils.data.random_split(self.data, [train_set_size, val_set_size])
 
   def train_dataloader(self):
 
     if self.opt.is_distributed:
       print("Ditributed sampler")
-      train_sampler = DistributedSampler(self.train_set, shuffle=True, drop_last=True)
-    else: train_sampler = None
+      src_train_sampler = DistributedSampler(self.src_data, shuffle=True, drop_last=True)
+      tar_train_sampler = DistributedSampler(self.tar_data, shuffle=True, drop_last=True)
 
-    return DataLoader(self.train_set, batch_size=self.batch_size, shuffle=train_sampler is None, sampler=train_sampler)
+    else: 
+      src_train_sampler = None
+      tar_train_sampler = None
+
+    src_dataloader = DataLoader(self.src_train_set, batch_size=self.batch_size, shuffle=src_train_sampler is None, sampler=src_train_sampler)
+    tar_dataloader = DataLoader(self.tar_train_set, batch_size=self.batch_size, shuffle=tar_train_sampler is None, sampler=tar_train_sampler)
+
+    loaders = {"src": src_dataloader, "tar": tar_dataloader}
+
+    return loaders
 
   def val_dataloader(self):
     if self.opt.is_distributed:
-      val_sampler = DistributedSampler(self.val_set, shuffle=False, drop_last=False)
-    else: val_sampler = None
+      print("Ditributed sampler")
+      src_train_sampler = DistributedSampler(self.src_data, shuffle=True, drop_last=True)
+      tar_train_sampler = DistributedSampler(self.tar_data, shuffle=True, drop_last=True)
 
-    return DataLoader(self.val_set, batch_size=self.batch_size, shuffle=False, sampler=val_sampler)
+    else: 
+      src_train_sampler = None
+      tar_train_sampler = None
+
+    src_dataloader = DataLoader(self.src_train_set, batch_size=self.batch_size, shuffle=src_train_sampler is None, sampler=src_train_sampler)
+    tar_dataloader = DataLoader(self.tar_train_set, batch_size=self.batch_size, shuffle=tar_train_sampler is None, sampler=tar_train_sampler)
+
+    loaders = {"src": src_dataloader, "tar": tar_dataloader}
+
+    return loaders
 
   def test_dataloader(self):
+
     if self.opt.is_distributed:
-      test_sampler = DistributedSampler(self.val_set, shuffle=False, drop_last=False)
-    else: test_sampler = None
+      print("Ditributed sampler")
+      src_train_sampler = DistributedSampler(self.src_data, shuffle=True, drop_last=True)
+      tar_train_sampler = DistributedSampler(self.tar_data, shuffle=True, drop_last=True)
 
-    return DataLoader(self.val_set, batch_size=self.batch_size, shuffle=False, sampler=test_sampler)
+    else: 
+      src_train_sampler = None
+      tar_train_sampler = None
 
-  
+    src_dataloader = DataLoader(self.src_train_set, batch_size=self.batch_size, shuffle=src_train_sampler is None, sampler=src_train_sampler)
+    tar_dataloader = DataLoader(self.tar_train_set, batch_size=self.batch_size, shuffle=tar_train_sampler is None, sampler=tar_train_sampler)
+
+    loaders = {"src": src_dataloader, "tar": tar_dataloader}
+
+    return loaders

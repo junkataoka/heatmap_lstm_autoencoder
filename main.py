@@ -59,6 +59,7 @@ class OvenLightningModule(pl.LightningModule):
         self.model = model
         self.log_images = self.opt.log_images
         self.criterion = torch.nn.MSELoss()
+        self.dcl_criterion = torch.nn.NLLLoss()
         self.batch_size = self.opt.batch_size
         self.time_steps = self.opt.time_steps
         self.epoch = 0
@@ -81,20 +82,45 @@ class OvenLightningModule(pl.LightningModule):
 
     def forward(self, x):
 
-        output = self.model(x, future_step=self.time_steps)
+        output, _ = self.model(x, future_step=self.time_steps)
 
         return output
 
     def training_step(self, batch, batch_idx):
-        x, y = batch
 
-        y_hat = self.forward(x)
+        src_x, src_y = batch["src"]
+        tar_x, tar_y = batch["tar"]
 
-        loss = self.criterion(y_hat, y)
-        avg_diff = torch.mean(torch.abs(y - y_hat))
+        src_y_hat, src_dcl_y_hat = self.forward(src_x)
+        tar_y_hat, tar_dcl_y_hat = self.forward(tar_x)
 
-        self.log("recon_loss", loss.item(), on_step=False, on_epoch=True)
-        self.log("avg_diff", avg_diff.item(), on_step=False, on_epoch=True)
+        src_label = torch.zeros(src_x.shape[0]).cuda()
+        tar_label = torch.ones(tar_x.shape[0]).cuda()
+
+        src_loss = self.criterion(src_y_hat, src_y)
+        tar_loss = self.criterion(tar_y_hat, tar_y)
+        src_dcl_loss =self.dcl_criterion(src_dcl_y_hat, src_label)
+        tar_dcl_loss =self.dcl_criterion(tar_dcl_y_hat, tar_label)
+
+        avg_diff_src_tar = torch.mean(torch.abs(src_y_hat - tar_y))
+        avg_diff_src_src = torch.mean(torch.abs(src_y_hat - src_y))
+
+        avg_diff_tar_src = torch.mean(torch.abs(tar_y_hat - src_y))
+        avg_diff_tar_tar = torch.mean(torch.abs(tar_y_hat - tar_y))
+
+        avg_diff_tar_src_hat = torch.mean(torch.abs(tar_y_hat - src_y_hat))
+
+        self.log("src_loss", src_loss.item(), on_step=False, on_epoch=True)
+        self.log("tar_loss", tar_loss.item(), on_step=False, on_epoch=True)
+        self.log("src_dcl_loss", src_dcl_loss.item(), on_step=False, on_epoch=True)
+        self.log("tar_dcl_loss", tar_dcl_loss.item(), on_step=False, on_epoch=True)
+
+        self.log("avg_diff_src_tar", avg_diff_src_tar.item(), on_step=False, on_epoch=True)
+        self.log("avg_diff_src_src", avg_diff_src_src.item(), on_step=False, on_epoch=True)
+
+        self.log("avg_diff_tar_tar", avg_diff_tar_tar.item(), on_step=False, on_epoch=True)
+        self.log("avg_diff_tar_src", avg_diff_tar_src.item(), on_step=False, on_epoch=True)
+        self.log("avg_diff_tar_src_hat", avg_diff_tar_src_hat.item(), on_step=False, on_epoch=True)
 
         # if self.log_images:
         #     x_grid, y_grid, y_hat_grid = self.create_video(x, y_hat, y)
@@ -125,13 +151,39 @@ class OvenLightningModule(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
 
-        x, y = batch
-        y_hat = self.forward(x)
+        src_x, src_y = batch["src"]
+        tar_x, tar_y = batch["tar"]
 
-        loss = self.criterion(y_hat, y)
-        avg_diff = torch.mean(torch.abs(y - y_hat))
-        self.log("val_recon_loss", loss.item(), on_step=False, on_epoch=True)
-        self.log("val_avg_diff", avg_diff.item(), on_step=False, on_epoch=True)
+        src_y_hat, src_dcl_y_hat = self.forward(src_x)
+        tar_y_hat, tar_dcl_y_hat = self.forward(tar_x)
+
+        src_label = torch.zeros(src_x.shape[0]).cuda()
+        tar_label = torch.ones(tar_x.shape[0]).cuda()
+
+        src_loss = self.criterion(src_y_hat, src_y)
+        tar_loss = self.criterion(tar_y_hat, tar_y)
+        src_dcl_loss =self.dcl_criterion(src_dcl_y_hat, src_label)
+        tar_dcl_loss =self.dcl_criterion(tar_dcl_y_hat, tar_label)
+
+        avg_diff_src_tar = torch.mean(torch.abs(src_y_hat - tar_y))
+        avg_diff_src_src = torch.mean(torch.abs(src_y_hat - src_y))
+
+        avg_diff_tar_src = torch.mean(torch.abs(tar_y_hat - src_y))
+        avg_diff_tar_tar = torch.mean(torch.abs(tar_y_hat - tar_y))
+
+        avg_diff_tar_src_hat = torch.mean(torch.abs(tar_y_hat - src_y_hat))
+
+        self.log("val_src_loss", src_loss.item(), on_step=False, on_epoch=True)
+        self.log("val_tar_loss", tar_loss.item(), on_step=False, on_epoch=True)
+        self.log("val_src_dcl_loss", src_dcl_loss.item(), on_step=False, on_epoch=True)
+        self.log("val_tar_dcl_loss", tar_dcl_loss.item(), on_step=False, on_epoch=True)
+
+        self.log("val_avg_diff_src_tar", avg_diff_src_tar.item(), on_step=False, on_epoch=True)
+        self.log("val_avg_diff_src_src", avg_diff_src_src.item(), on_step=False, on_epoch=True)
+
+        self.log("val_avg_diff_tar_tar", avg_diff_tar_tar.item(), on_step=False, on_epoch=True)
+        self.log("val_avg_diff_tar_src", avg_diff_tar_src.item(), on_step=False, on_epoch=True)
+        self.log("val_avg_diff_tar_src_hat", avg_diff_tar_src_hat.item(), on_step=False, on_epoch=True)
 
 
     def configure_optimizers(self):
@@ -140,7 +192,7 @@ class OvenLightningModule(pl.LightningModule):
 def run_trainer():
     conv_lstm_model = EncoderDecoderConvLSTM(nf=opt.n_hidden_dim, in_chan=4)
 
-    oven_data = TSDataModule(opt, opt.root, opt.input_file, opt.target_file, opt.batch_size)
+    oven_data = TSDataModule(opt, opt.root, opt.src_input_file, opt.src_target_file, opt.tar_input_File, opt.tar_target_file, opt.batch_size)
     if opt.neptune_logger:
         logger = NeptuneLogger(
                 api_key=opt.api_key,

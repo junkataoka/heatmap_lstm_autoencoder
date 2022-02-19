@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
 from models import ConvLSTMCell
+from torch.autograd import Function
 
 class EncoderDecoderConvLSTM(nn.Module):
     def __init__(self, nf, in_chan):
@@ -46,6 +47,12 @@ class EncoderDecoderConvLSTM(nn.Module):
                                      kernel_size=(1, 3, 3),
                                      padding=(0, 1, 1))
 
+        self.domain_classifier = nn.Sequential()
+        self.domain_classifier.add_module('d_fc1', nn.Linear(nf))
+        self.domain_classifier.add_module('d_bn1', nn.BatchNorm1d(100))
+        self.domain_classifier.add_module('d_relu1', nn.ReLU(True))
+        self.domain_classifier.add_module('d_fc2', nn.Linear(100, 2))
+        self.domain_classifier.add_module('d_softmax', nn.LogSoftmax(dim=1))
 
     def autoencoder(self, x, seq_len, future_step, h_t, c_t, h_t2, c_t2, h_t3, c_t3, h_t4, c_t4):
 
@@ -60,6 +67,8 @@ class EncoderDecoderConvLSTM(nn.Module):
 
         # encoder_vector
         encoder_vector = h_t2
+        reverse_encoder_vector = ReverseLayerF.apply(encoder_vector, alpha=1.0)
+        domain_outputs = self.domain_classifier(reverse_encoder_vector)
 
         # decoder
         for t in range(future_step):
@@ -75,7 +84,7 @@ class EncoderDecoderConvLSTM(nn.Module):
         outputs = self.decoder_CNN(outputs)
         outputs = outputs.permute(0, 2, 1, 3, 4)
 
-        return outputs
+        return outputs, domain_outputs
 
     def forward(self, x, future_step):
 
@@ -96,6 +105,19 @@ class EncoderDecoderConvLSTM(nn.Module):
         h_t4, c_t4 = self.decoder_2_convlstm.init_hidden(batch_size=b, image_size=(h, w))
 
         # autoencoder forward
-        outputs = self.autoencoder(x, seq_len, future_step, h_t, c_t, h_t2, c_t2, h_t3, c_t3, h_t4, c_t4)
+        outputs, encorded_vector = self.autoencoder(x, seq_len, future_step, h_t, c_t, h_t2, c_t2, h_t3, c_t3, h_t4, c_t4)
 
-        return outputs
+        return outputs, encorded_vector
+class ReverseLayerF(Function):
+
+    @staticmethod
+    def forward(ctx, x, alpha):
+        ctx.alpha = alpha
+
+        return x.view_as(x)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        output = grad_output.neg() * ctx.alpha
+
+        return output, None
