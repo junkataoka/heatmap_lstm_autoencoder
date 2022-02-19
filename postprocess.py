@@ -33,11 +33,11 @@ for idx, path in enumerate(pred_paths):
     #     pred_df = pd.DataFrame(pred.numpy())
     #     pred_df.to_csv(f"Pred/{idx}_{i}.csv", index=False)
 
+
 #%%
 target = torch.stack(tar_l, dim=0)
 prediction = torch.stack(pred_l, dim=0)
 diff = torch.abs(target - prediction)
-
 step_error = diff.mean((0, 1, 3, 4, 5))
 area_error = diff.mean((0, 1, 2, 3))
 
@@ -61,3 +61,5 @@ plt.xticks([]),plt.yticks([])
 # %%
 plt.imshow(target[0, 0, 0, 0, :, :])
 plt.xticks([]),plt.yticks([])
+#%%
+#%%

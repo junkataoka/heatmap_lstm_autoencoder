@@ -15,7 +15,8 @@ class args:
     num_geom = 12
     seq_len = 15
     num_area = 15
-
+    num_target_pseudo_data = 20
+#%%
 def generate_input(root, num_recipe, num_area, num_geom):
 
     out = np.empty((num_recipe, num_area, num_geom, 4, 50, 50))
@@ -36,7 +37,6 @@ def generate_input(root, num_recipe, num_area, num_geom):
                 out[i, j, k, :, :, :] = arr
 
     return out
-
 
 def generate_target(root, num_recipe, seq_len, num_geom):
 
@@ -66,3 +66,29 @@ if not os.path.exists("dataset/input.pt"):
     sd = torch.std(target_tensor, dim=(0, 3, 4), keepdim=True)
     target_tensor = (target_tensor - mean + 1e-5) / (sd + 1e-5)
     torch.save(target_tensor, "./dataset/input.pt")
+
+# Create pseudo target dataset
+#%%
+input_tensor = torch.load("./dataset/input.pt")
+target_tensor = torch.load("./dataset/target.pt")
+high = input_tensor.shape[0]
+target_batch_idx = torch.randint(low=0, high=high, size=(args.num_target_pseudo_data,))
+source_batch_idx = [i for i in range(high) if i not in target_batch_idx]
+
+source_input_tensor = input_tensor[source_batch_idx]
+target_input_tensor = input_tensor[target_batch_idx]
+torch.save(source_input_tensor, "./dataset/source_input.pt")
+torch.save(target_input_tensor, "./dataset/target_input.pt")
+
+target_target_tensor = target_tensor[target_batch_idx]
+source_target_tensor = target_tensor[source_batch_idx]
+torch.save(source_target_tensor, "./dataset/source_target.pt")
+torch.save(target_target_tensor, "./dataset/target_target.pt")
+
+noise = torch.randn((args.num_target_pseudo_data, 15, 1, 23, 23))
+emp = torch.zeros((args.num_target_pseudo_data, 15, 1 , 50, 50))
+emp[:, :, :, :23, :23] = noise
+ps_target_target_tensor = target_target_tensor + emp
+mu = ps_target_target_tensor[:, :, :, :23, :23].mean((-1, -2), keepdim=True)
+ps_target_target_tensor[:, :, :, :23, :23] = mu
+torch.save(ps_target_target_tensor, "./dataset/ps_target_target.pt")
