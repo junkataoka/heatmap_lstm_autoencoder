@@ -4,4 +4,6 @@ Output/*
 checkpoints/*
 bin/*
 Target/*
-Pred/*
+pred/*
+Untitled/*
+lightning_logs/*

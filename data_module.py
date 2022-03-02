@@ -47,16 +47,18 @@ class TSDataModule(pl.LightningDataModule):
 
 
     self.train_transform = transforms.Compose([
-      transforms.Pad(5),
-      transforms.Resize(70),
-      transforms.RandomCrop(50),
-      transforms.RandomHorizontalFlip(),
-      transforms.RandomVerticalFlip()
+      transforms.Pad(2),
+      transforms.Resize(50),
+      # transforms.RandomCrop(50),
+      # transforms.RandomHorizontalFlip(),
+      # transforms.RandomVerticalFlip()
     ])
 
     self.val_transform = transforms.Compose([
-      transforms.Pad(5),
-      transforms.Resize(50),
+      transforms.Pad(2),
+      transforms.Resize(50)
+      # transforms.Pad(2),
+      # transforms.CenterCrop(50),
     ])
 
     self.src_train_data = timeseries(self.root, self.src_input_file, self.src_target_file, transform=self.train_transform)
@@ -88,15 +90,15 @@ class TSDataModule(pl.LightningDataModule):
 
     if self.opt.is_distributed:
       print("Ditributed sampler")
-      src_train_sampler = DistributedSampler(self.src_val_data, shuffle=True, drop_last=True)
-      tar_train_sampler = DistributedSampler(self.tar_val_data, shuffle=True, drop_last=True)
+      src_train_sampler = DistributedSampler(self.src_val_data, shuffle=False, drop_last=True)
+      tar_train_sampler = DistributedSampler(self.tar_val_data, shuffle=False, drop_last=True)
 
     else:
       src_train_sampler = None
       tar_train_sampler = None
 
-    src_dataloader = DataLoader(self.src_train_data, batch_size=self.batch_size, shuffle=src_train_sampler is None, sampler=src_train_sampler, drop_last=True)
-    tar_dataloader = DataLoader(self.tar_train_data, batch_size=self.batch_size, shuffle=tar_train_sampler is None, sampler=tar_train_sampler, drop_last=True)
+    src_dataloader = DataLoader(self.src_train_data, batch_size=self.batch_size, shuffle=False, sampler=src_train_sampler, drop_last=True)
+    tar_dataloader = DataLoader(self.tar_train_data, batch_size=self.batch_size, shuffle=False, sampler=tar_train_sampler, drop_last=True)
 
     return [src_dataloader, tar_dataloader]
 
@@ -104,14 +106,14 @@ class TSDataModule(pl.LightningDataModule):
 
     if self.opt.is_distributed:
       print("Ditributed sampler")
-      src_train_sampler = DistributedSampler(self.src_data, shuffle=True, drop_last=True)
-      tar_train_sampler = DistributedSampler(self.tar_data, shuffle=True, drop_last=True)
+      src_train_sampler = DistributedSampler(self.src_data, shuffle=False, drop_last=True)
+      tar_train_sampler = DistributedSampler(self.tar_data, shuffle=False, drop_last=True)
 
     else:
       src_train_sampler = None
       tar_train_sampler = None
 
-    src_dataloader = DataLoader(self.src_train_data, batch_size=self.batch_size, shuffle=src_train_sampler is None, sampler=src_train_sampler, drop_last=True)
-    tar_dataloader = DataLoader(self.tar_train_data, batch_size=self.batch_size, shuffle=tar_train_sampler is None, sampler=tar_train_sampler, drop_last=True)
+    src_dataloader = DataLoader(self.src_train_data, batch_size=self.batch_size, shuffle=False, sampler=src_train_sampler, drop_last=True)
+    tar_dataloader = DataLoader(self.tar_train_data, batch_size=self.batch_size, shuffle=False, sampler=tar_train_sampler, drop_last=True)
 
     return [src_dataloader, tar_dataloader]

@@ -14,5 +14,3 @@ module load cuda11.1/toolkit/11.1.1
 # srun python preprocess.py
 # srun python main.py --n_gpus=2 --num_nodes=4 --batch_size=16 --epochs=1000 --log_images --is_distributed --n_hidden_dim=64 --time_steps=15 --retrain --lr=0.001
 srun python main.py --n_gpus=1 --num_nodes=1 --batch_size=1 --epochs=1 --log_images --test
-
-

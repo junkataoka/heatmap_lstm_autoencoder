@@ -48,12 +48,7 @@ class EncoderDecoderConvLSTM(nn.Module):
                                      kernel_size=(1, 3, 3),
                                      padding=(0, 1, 1))
 
-        self.domain_classifier = nn.Sequential()
-        self.domain_classifier.add_module('d_fc1', nn.Linear(64*50*50, 100))
-        self.domain_classifier.add_module('d_bn1', nn.BatchNorm1d(100))
-        self.domain_classifier.add_module('d_relu1', nn.ReLU(True))
-        self.domain_classifier.add_module('d_fc2', nn.Linear(100, 2))
-        self.domain_classifier.add_module('d_softmax', nn.LogSoftmax(dim=1))
+        self.layer_norm = nn.LayerNorm([64, 50, 50])
 
     def autoencoder(self, x, seq_len, future_step, h_t, c_t, h_t2, c_t2, h_t3, c_t3, h_t4, c_t4):
 
@@ -69,9 +64,7 @@ class EncoderDecoderConvLSTM(nn.Module):
         # encoder_vector
         encoder_vector = h_t2
         b, c, h, w = encoder_vector.shape
-
-        reverse_encoder_vector = ReverseLayerF.apply(encoder_vector.view(b, -1), 1.0)
-        domain_outputs = self.domain_classifier(reverse_encoder_vector)
+        out_encoder_vector = encoder_vector.view(b, -1)
 
         # decoder
         for t in range(future_step):
@@ -87,7 +80,7 @@ class EncoderDecoderConvLSTM(nn.Module):
         outputs = self.decoder_CNN(outputs)
         outputs = outputs.permute(0, 2, 1, 3, 4)
 
-        return outputs, domain_outputs
+        return outputs, out_encoder_vector
 
     def forward(self, x, future_step):
 
@@ -101,6 +94,7 @@ class EncoderDecoderConvLSTM(nn.Module):
         b, seq_len, _, h, w = x.size()
 
         # initialize hidden states
+
         h_t, c_t = self.encoder_1_convlstm.init_hidden(batch_size=b, image_size=(h, w))
         h_t2, c_t2 = self.encoder_2_convlstm.init_hidden(batch_size=b, image_size=(h, w))
         h_t3, c_t3 = self.decoder_1_convlstm.init_hidden(batch_size=b, image_size=(h, w))
