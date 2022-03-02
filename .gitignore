@@ -1,0 +1,9 @@
+dataset/*
+INPUT/*
+Output/*
+checkpoints/*
+bin/*
+Target/*
+pred/*
+Untitled/*
+lightning_logs/*
