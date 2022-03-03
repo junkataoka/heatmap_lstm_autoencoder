@@ -10,6 +10,7 @@ from models import ConvLSTMCell
 import os
 import numpy as np
 import random
+from sklearn.model_selection import KFold
 
 class args:
     num_recipe =81
@@ -56,52 +57,35 @@ def generate_target(root, num_recipe, seq_len, num_geom):
                 out[i, j, k, :, :, :] = img
     return out
 #%%
-print("Generating target data")
-a = generate_target("./Output", num_recipe=args.num_recipe, seq_len=args.seq_len, num_geom=args.num_geom)
-target_tensor = torch.tensor(a).cuda()
-target_tensor = target_tensor.permute(0,2,1,3,4,5)
-target_tensor = target_tensor.reshape(args.num_recipe*args.num_geom, args.seq_len, 1, 50, 50) - 273.15
-torch.save(target_tensor, f"./dataset/target.pt")
+# print("Generating target data")
+# a = generate_target("./Output", num_recipe=args.num_recipe, seq_len=args.seq_len, num_geom=args.num_geom)
+# target_tensor = torch.tensor(a).cuda()
+# target_tensor = target_tensor.permute(0,2,1,3,4,5)
+# target_tensor = target_tensor.reshape(args.num_recipe*args.num_geom, args.seq_len, 1, 50, 50) - 273.15
+# torch.save(target_tensor, f"./dataset/target.pt")
 
-#%%
-print("Generating input data")
-a = generate_input("./INPUT", num_recipe=args.num_recipe, num_area=args.num_area, num_geom=args.num_geom)
-input_tensor = torch.tensor(a).cuda()
-input_tensor = input_tensor.permute(0,2,1,3,4,5)
-input_tensor = input_tensor.reshape(args.num_recipe*args.num_geom, args.num_area, 4, 50, 50)
-mean = torch.mean(input_tensor, dim=(0, 3, 4), keepdim=True)
-sd = torch.std(input_tensor, dim=(0, 3, 4), keepdim=True)
-input_tensor_normalized = (input_tensor - mean + 1e-5) / (sd + 1e-5)
-torch.save(input_tensor_normalized, f"./dataset/input.pt")
-torch.save(input_tensor, f"./dataset/input_original.pt")
+# #%%
+# print("Generating input data")
+# a = generate_input("./INPUT", num_recipe=args.num_recipe, num_area=args.num_area, num_geom=args.num_geom)
+# input_tensor = torch.tensor(a).cuda()
+# input_tensor = input_tensor.permute(0,2,1,3,4,5)
+# input_tensor = input_tensor.reshape(args.num_recipe*args.num_geom, args.num_area, 4, 50, 50)
+# mean = torch.mean(input_tensor, dim=(0, 3, 4), keepdim=True)
+# sd = torch.std(input_tensor, dim=(0, 3, 4), keepdim=True)
+# input_tensor_normalized = (input_tensor - mean + 1e-5) / (sd + 1e-5)
+# torch.save(input_tensor_normalized, f"./dataset/input.pt")
+# torch.save(input_tensor, f"./dataset/input_original.pt")
 
 #%% Create pseudo target dataset
 target_tensor = torch.load('./dataset/target.pt')
 input_tensor = torch.load('./dataset/input.pt')
-high = input_tensor.shape[0]
-random_indices = torch.randperm(high)
+kf = KFold(n_splits=10, random_state=args.seed, shuffle=True)
+c = 1
+for train, test in kf.split(target_tensor):
 
-target_batch_idx = random_indices[:args.num_target_pseudo_data]
-source_batch_idx = random_indices[args.num_target_pseudo_data:]
+    torch.save(input_tensor[train], f"./dataset/train_input_fold{c}.pt")
+    torch.save(target_tensor[train], f"./dataset/train_target_fold{c}.pt")
+    torch.save(input_tensor[test], f"./dataset/test_input_fold{c}.pt")
+    torch.save(target_tensor[test], f"./dataset/test_target_fold{c}.pt")
 
-source_input_tensor = input_tensor[source_batch_idx, ...]
-source_target_tensor = target_tensor[source_batch_idx, ...]
-torch.save(source_input_tensor, f"./dataset/source_input.pt")
-torch.save(source_target_tensor, f"./dataset/source_target.pt")
-
-target_input_tensor = input_tensor[target_batch_idx, ...]
-target_target_tensor = target_tensor[target_batch_idx, ...]
-torch.save(target_input_tensor, f"./dataset/target_input.pt")
-torch.save(target_target_tensor, f"./dataset/target_target.pt")
-
-cropped_target_target = target_target_tensor[:, :, :, :25, :25]
-noise = torch.randn((args.num_target_pseudo_data, 15, 1, 25, 25)).cuda()
-nse_cropped_target_target = cropped_target_target + noise*10
-
-mu = cropped_target_target.mean((-1, -2), keepdim=True)
-nsemu = nse_cropped_target_target.mean((-1, -2), keepdim=True)*10
-
-ps_target_target_tensor = target_target_tensor
-ps_target_target_tensor[:, :, :, :25, :25] = target_target_tensor[:, :, :, :25, :25] - mu + nsemu
-
-torch.save(ps_target_target_tensor, f"./dataset/ps_target_target.pt")
+    c += 1

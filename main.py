@@ -154,7 +154,7 @@ class OvenLightningModule(pl.LightningModule):
             plt.clf()
             plt.cla()
 
-        loss = src_loss  + tar_loss + mmd_loss
+        loss = src_loss
 
         return loss
 
@@ -202,28 +202,48 @@ def test_trainer():
     source_loader, target_loader = oven_data.val_dataloader()
     model.load_model()
     model.eval()
-    err = torch.zeros(15).cuda(0)
+    step_err = torch.zeros(15).cuda(0)
+    area_err = torch.zeros((50, 50)).cuda(0)
     for idx, batch in enumerate(target_loader):
         inp, target = batch
         with torch.no_grad():
             predictions, _ = model(inp)
-            diff = torch.mean(torch.abs(target - predictions), (0,  2, 3, 4))
-            err += diff
+            step_diff = torch.mean(torch.abs(target - predictions), (0,  2, 3, 4))
+            area_diff = torch.mean(torch.abs(target - predictions), (0,  1, 2))
 
-            plt.figure(figsize=(12, 8))
-            plt.plot(target[0, :, :25, :25].mean((-1, -2)).cpu(), label="Target")
-            plt.plot(predictions[0, :, :25, :25].mean((-1, -2)).cpu(), label="Prediction")
-            plt.ylabel("Temperature", fontsize=16)
-            plt.yticks(fontsize=16)
-            plt.xlabel("Time Step", fontsize=16)
-            plt.xticks(fontsize=16)
-            plt.legend(fontsize=16)
-            plt.ylim([220, 280])
-            plt.savefig("Figure/sample.png", dpi=300, bbox_inches='tight')
+            step_err += step_diff
+            area_err += area_diff
 
-            input()
 
-    step_err = err / len(target_loader)
+    plt.figure(figsize=(12, 8))
+    plt.plot(target[0, :, :25, :25].mean((-1, -2)).cpu(), label="Target")
+    plt.plot(predictions[0, :, :25, :25].mean((-1, -2)).cpu(), label="Prediction")
+    plt.ylabel("Temperature", fontsize=16)
+    plt.yticks(fontsize=16)
+    plt.xlabel("Time Step", fontsize=16)
+    plt.xticks(fontsize=16)
+    plt.legend(fontsize=16)
+    plt.savefig("Figure/sample.png", dpi=300, bbox_inches='tight')
+
+    step_err = step_err / len(target_loader)
+    area_err = area_err / len(target_loader)
+    step_err = step_err.cpu().numpy()
+    area_err = area_err.cpu().numpy()
+
+    plt.figure(figsize=(12, 8))
+    sns.set(font_scale=2)
+    sns.heatmap(area_err)
+    plt.xticks([]),plt.yticks([])
+    plt.savefig("Figure/area_error.png", dpi=300)
+#%%
+    plt.figure(figsize=(12, 8))
+    plt.bar(torch.arange(1,16), step_err)
+    plt.ylabel("Mean Aboslute Difference", fontsize=16)
+    plt.yticks(fontsize=16)
+    plt.xlabel("Time Step", fontsize=16)
+    plt.xticks(fontsize=16)
+    plt.savefig("Figure/step_error.png", dpi=300)
+
 
 
 def run_trainer():
@@ -244,7 +264,7 @@ def run_trainer():
                         accelerator='ddp',
                         num_nodes=opt.num_nodes,
                         # gradient_clip_val=0.5,
-                        multiple_trainloader_mode="min_size"
+                        # multiple_trainloader_mode="min_size"
                       )
 
     if opt.retrain:
