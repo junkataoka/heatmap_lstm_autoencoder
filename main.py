@@ -18,6 +18,7 @@ import argparse
 from torchvision import transforms
 from mmd import MMD
 import seaborn as sns
+import numpy as np
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--lr', default=1e-2, type=float, help='learning rate')
@@ -47,6 +48,7 @@ parser.add_argument('--neptune_logger', action='store_true', help='Whether to us
 parser.add_argument('--api_key', type=str,
                     default="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiIwOTE0MGFjYy02NzMwLTRkODQtYTU4My1lNjk0YWEzODM3MGIifQ==")
 
+parser.add_argument('--val_recipe', action='store_true', help='Whether to get the best recipe or not')
 opt = parser.parse_args()
 print(opt)
 
@@ -129,6 +131,9 @@ class OvenLightningModule(pl.LightningModule):
 
         self.log("avg_diff_tar_tar", avg_diff_tar_tar.item(), on_step=False, on_epoch=True)
 
+        # loss = src_loss + tar_loss + mmd_loss
+        loss = src_loss + tar_loss
+
         if self.log_images:
             x_grid, y_grid, y_hat_grid = self.create_video(src_x, src_y_hat, src_y)
             fname = 'epoch_' + str(self.current_epoch+1) + '_step' + str(self.global_step)
@@ -154,7 +159,6 @@ class OvenLightningModule(pl.LightningModule):
             plt.clf()
             plt.cla()
 
-        loss = src_loss
 
         return loss
 
@@ -244,7 +248,21 @@ def test_trainer():
     plt.xticks(fontsize=16)
     plt.savefig("Figure/step_error.png", dpi=300)
 
-
+def val_best_recipes():
+    model =OvenLightningModule(opt).cuda()
+    model.load_model()
+    model.eval()
+    oven_data = TSDataModule(opt, opt.root, opt.src_input_file, opt.src_target_file, opt.tar_input_file, opt.tar_target_file, batch_size=1)
+    oven_data.setup()
+    source_loader, target_loader = oven_data.val_dataloader()
+    avg_diff = []
+    for idx, batch in enumerate(target_loader):
+        inp, target = batch
+        with torch.no_grad():
+            predictions, _ = model(inp)
+            avg_diff.append(torch.mean(torch.abs(target - predictions)))
+    arr = torch.stack(avg_diff)
+    torch.save(arr, f"temp/{opt.tar_input_file}_err.pt")
 
 def run_trainer():
     model =OvenLightningModule(opt).cuda()
@@ -264,7 +282,7 @@ def run_trainer():
                         accelerator='ddp',
                         num_nodes=opt.num_nodes,
                         # gradient_clip_val=0.5,
-                        # multiple_trainloader_mode="min_size"
+                        multiple_trainloader_mode="min_size"
                       )
 
     if opt.retrain:
@@ -277,6 +295,8 @@ def run_trainer():
 if __name__ == '__main__':
     if opt.test:
         test_trainer()
+    elif opt.val_recipe:
+        val_best_recipes()
 
     else:
         run_trainer()
