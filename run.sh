@@ -11,7 +11,7 @@
 # 	done
 
 
-python main.py --n_gpus=1 --num_nodes=1 --batch_size=4 --epochs=100 --neptune_logger --lr=0.001 \
+python main.py --n_gpus=1 --num_nodes=1 --batch_size=1 --epochs=100 --neptune_logger --lr=0.001 \
 			--src_input_file=x_train.pt --src_target_file=y_train.pt \
 			--tar_input_file=x_val.pt --tar_target_file=y_val.pt \
-			--model_path checkpoints/lstm_ac.ckpt --out_model_path checkpoints/lstm_ac_tar.ckpt --retrain
+			--model_path checkpoints/lstm_ac_attention_mmd.ckpt --out_model_path checkpoints/lstm_ac_attention_mmd.ckpt

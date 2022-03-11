@@ -38,6 +38,7 @@ parser.add_argument('--src_target_file', type=str, default="source_target.pt")
 parser.add_argument('--tar_input_file', type=str, default="target_input.pt")
 parser.add_argument('--tar_target_file', type=str, default="sp_target_target.pt")
 parser.add_argument('--time_steps', type=int, default=15)
+parser.add_argument('--debug', action='store_true')
 
 
 parser.add_argument('--model_path', type=str, default="checkpoints/lstm_ac.ckpt")
@@ -282,7 +283,7 @@ def run_trainer():
                         accelerator='ddp',
                         num_nodes=opt.num_nodes,
                         # gradient_clip_val=0.5,
-                        multiple_trainloader_mode="min_size"
+                        # multiple_trainloader_mode="min_size"
                       )
 
     if opt.retrain:
@@ -291,12 +292,22 @@ def run_trainer():
     trainer.fit(model, datamodule=oven_data)
     torch.save(model.model.state_dict(), opt.out_model_path)
 
+def debug():
+    model =OvenLightningModule(opt).cuda()
+    model.train()
+    test_inp = torch.randn((1, 15, 4, 50, 50)).cuda()
+    output, feature = model(test_inp)
+    print(output.shape)
+
 
 if __name__ == '__main__':
     if opt.test:
         test_trainer()
     elif opt.val_recipe:
         val_best_recipes()
+
+    elif opt.debug:
+        debug()
 
     else:
         run_trainer()

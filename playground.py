@@ -22,7 +22,7 @@ sorted_out = dict(sorted(out.items()))
 #         res[key] = val
 sorted_out
 
-#%%
+#%
 df = pd.DataFrame(sorted_out)
 df = df.T.drop_duplicates().T
 

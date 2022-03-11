@@ -1,5 +1,6 @@
 import torch.nn as nn
 import torch
+from self_attention import AttentionConv
 
 class ConvLSTMCell(nn.Module):
 
@@ -25,11 +26,11 @@ class ConvLSTMCell(nn.Module):
         self.hidden_dim = hidden_dim
 
         self.kernel_size = kernel_size
-        self.padding = kernel_size[0] // 2, kernel_size[1] // 2
+        self.padding = kernel_size // 2
         self.bias = bias
         self.stride = 1
 
-        self.conv = nn.Conv2d(in_channels=self.input_dim + self.hidden_dim,
+        self.conv = AttentionConv(in_channels=self.input_dim + self.hidden_dim,
                               out_channels=4 * self.hidden_dim,
                               kernel_size=self.kernel_size,
                               padding=self.padding,
@@ -43,7 +44,9 @@ class ConvLSTMCell(nn.Module):
 
         input_tensor = self.layernorm(input_tensor)
         combined = torch.cat([input_tensor, h_cur], dim=1)  # concatenate along channel axis
+
         combined_conv = self.conv(combined)
+
         cc_i, cc_f, cc_o, cc_g = torch.split(combined_conv, self.hidden_dim, dim=1)
         i = torch.sigmoid(cc_i)
         f = torch.sigmoid(cc_f)
@@ -60,3 +63,4 @@ class ConvLSTMCell(nn.Module):
         height, width = image_size
         return (torch.zeros(batch_size, self.hidden_dim, height, width, device=self.conv.weight.device),
                 torch.zeros(batch_size, self.hidden_dim, height, width, device=self.conv.weight.device))
+
