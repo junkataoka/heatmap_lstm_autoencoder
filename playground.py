@@ -1,21 +1,34 @@
 #%%
-import torch
 import numpy as np
-import matplotlib.pyplot as plt
+import torch
+import pandas as pd
+#%%
+out = {}
+for i in range(1, 10):
+    err = torch.load(f"temp/test_input_fold{i}.pt_err.pt").cpu().data.numpy()
+    inp = torch.load(f"dataset/test_input_original_fold{i}.pt").cpu().data.numpy()
+    recipe = inp[:, :, -1, 0, 0]
+    for j in range(err.shape[0]):
+        out[err[j]] = recipe[j]
 
-#%%
-inp = torch.load("./dataset/input_original.pt")
-tar = torch.load("./dataset/target.pt")
 
-#%%
-inp[0, :, -1, 0, 0].cpu()
+sorted_out = dict(sorted(out.items()))
 
-#%%
-plt.plot(tar[10, :, -1, :, :].mean((-1,-2)).cpu())
-plt.plot(inp[10, :, -1, 0, 0].cpu())
-#%%
-#%%
-n = 400
-print(tar[n, :, -1, :, :].mean((-1,-2)).cpu())
-print(inp[n, :, -1, 0, 0])
-#%%
+# temp = []
+# res = dict()
+# for key, val in sorted_out.items():
+#     if val not in temp:
+#         temp.append(val)
+#         res[key] = val
+sorted_out
+
+#%
+df = pd.DataFrame(sorted_out)
+df = df.T.drop_duplicates().T
+
+# %%
+df.to_csv("recipe_for_experiment.csv")
+# %%
+df.iloc[:, :20]
+
+# %%

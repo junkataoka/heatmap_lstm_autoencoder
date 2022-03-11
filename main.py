@@ -18,6 +18,7 @@ import argparse
 from torchvision import transforms
 from mmd import MMD
 import seaborn as sns
+import numpy as np
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--lr', default=1e-2, type=float, help='learning rate')
@@ -37,6 +38,7 @@ parser.add_argument('--src_target_file', type=str, default="source_target.pt")
 parser.add_argument('--tar_input_file', type=str, default="target_input.pt")
 parser.add_argument('--tar_target_file', type=str, default="sp_target_target.pt")
 parser.add_argument('--time_steps', type=int, default=15)
+parser.add_argument('--debug', action='store_true')
 
 
 parser.add_argument('--model_path', type=str, default="checkpoints/lstm_ac.ckpt")
@@ -47,6 +49,7 @@ parser.add_argument('--neptune_logger', action='store_true', help='Whether to us
 parser.add_argument('--api_key', type=str,
                     default="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiIwOTE0MGFjYy02NzMwLTRkODQtYTU4My1lNjk0YWEzODM3MGIifQ==")
 
+parser.add_argument('--val_recipe', action='store_true', help='Whether to get the best recipe or not')
 opt = parser.parse_args()
 print(opt)
 
@@ -129,6 +132,9 @@ class OvenLightningModule(pl.LightningModule):
 
         self.log("avg_diff_tar_tar", avg_diff_tar_tar.item(), on_step=False, on_epoch=True)
 
+        # loss = src_loss + tar_loss + mmd_loss
+        loss = src_loss + tar_loss
+
         if self.log_images:
             x_grid, y_grid, y_hat_grid = self.create_video(src_x, src_y_hat, src_y)
             fname = 'epoch_' + str(self.current_epoch+1) + '_step' + str(self.global_step)
@@ -154,7 +160,6 @@ class OvenLightningModule(pl.LightningModule):
             plt.clf()
             plt.cla()
 
-        loss = src_loss  + tar_loss + mmd_loss
 
         return loss
 
@@ -202,29 +207,63 @@ def test_trainer():
     source_loader, target_loader = oven_data.val_dataloader()
     model.load_model()
     model.eval()
-    err = torch.zeros(15).cuda(0)
+    step_err = torch.zeros(15).cuda(0)
+    area_err = torch.zeros((50, 50)).cuda(0)
     for idx, batch in enumerate(target_loader):
         inp, target = batch
         with torch.no_grad():
             predictions, _ = model(inp)
-            diff = torch.mean(torch.abs(target - predictions), (0,  2, 3, 4))
-            err += diff
+            step_diff = torch.mean(torch.abs(target - predictions), (0,  2, 3, 4))
+            area_diff = torch.mean(torch.abs(target - predictions), (0,  1, 2))
 
-            plt.figure(figsize=(12, 8))
-            plt.plot(target[0, :, :25, :25].mean((-1, -2)).cpu(), label="Target")
-            plt.plot(predictions[0, :, :25, :25].mean((-1, -2)).cpu(), label="Prediction")
-            plt.ylabel("Temperature", fontsize=16)
-            plt.yticks(fontsize=16)
-            plt.xlabel("Time Step", fontsize=16)
-            plt.xticks(fontsize=16)
-            plt.legend(fontsize=16)
-            plt.ylim([220, 280])
-            plt.savefig("Figure/sample.png", dpi=300, bbox_inches='tight')
+            step_err += step_diff
+            area_err += area_diff
 
-            input()
 
-    step_err = err / len(target_loader)
+    plt.figure(figsize=(12, 8))
+    plt.plot(target[0, :, :25, :25].mean((-1, -2)).cpu(), label="Target")
+    plt.plot(predictions[0, :, :25, :25].mean((-1, -2)).cpu(), label="Prediction")
+    plt.ylabel("Temperature", fontsize=16)
+    plt.yticks(fontsize=16)
+    plt.xlabel("Time Step", fontsize=16)
+    plt.xticks(fontsize=16)
+    plt.legend(fontsize=16)
+    plt.savefig("Figure/sample.png", dpi=300, bbox_inches='tight')
 
+    step_err = step_err / len(target_loader)
+    area_err = area_err / len(target_loader)
+    step_err = step_err.cpu().numpy()
+    area_err = area_err.cpu().numpy()
+
+    plt.figure(figsize=(12, 8))
+    sns.set(font_scale=2)
+    sns.heatmap(area_err)
+    plt.xticks([]),plt.yticks([])
+    plt.savefig("Figure/area_error.png", dpi=300)
+#%%
+    plt.figure(figsize=(12, 8))
+    plt.bar(torch.arange(1,16), step_err)
+    plt.ylabel("Mean Aboslute Difference", fontsize=16)
+    plt.yticks(fontsize=16)
+    plt.xlabel("Time Step", fontsize=16)
+    plt.xticks(fontsize=16)
+    plt.savefig("Figure/step_error.png", dpi=300)
+
+def val_best_recipes():
+    model =OvenLightningModule(opt).cuda()
+    model.load_model()
+    model.eval()
+    oven_data = TSDataModule(opt, opt.root, opt.src_input_file, opt.src_target_file, opt.tar_input_file, opt.tar_target_file, batch_size=1)
+    oven_data.setup()
+    source_loader, target_loader = oven_data.val_dataloader()
+    avg_diff = []
+    for idx, batch in enumerate(target_loader):
+        inp, target = batch
+        with torch.no_grad():
+            predictions, _ = model(inp)
+            avg_diff.append(torch.mean(torch.abs(target - predictions)))
+    arr = torch.stack(avg_diff)
+    torch.save(arr, f"temp/{opt.tar_input_file}_err.pt")
 
 def run_trainer():
     model =OvenLightningModule(opt).cuda()
@@ -244,7 +283,7 @@ def run_trainer():
                         accelerator='ddp',
                         num_nodes=opt.num_nodes,
                         # gradient_clip_val=0.5,
-                        multiple_trainloader_mode="min_size"
+                        # multiple_trainloader_mode="min_size"
                       )
 
     if opt.retrain:
@@ -253,10 +292,22 @@ def run_trainer():
     trainer.fit(model, datamodule=oven_data)
     torch.save(model.model.state_dict(), opt.out_model_path)
 
+def debug():
+    model =OvenLightningModule(opt).cuda()
+    model.train()
+    test_inp = torch.randn((1, 15, 4, 50, 50)).cuda()
+    output, feature = model(test_inp)
+    print(output.shape)
+
 
 if __name__ == '__main__':
     if opt.test:
         test_trainer()
+    elif opt.val_recipe:
+        val_best_recipes()
+
+    elif opt.debug:
+        debug()
 
     else:
         run_trainer()
