@@ -80,8 +80,8 @@ class TSDataModule(pl.LightningDataModule):
       src_train_sampler = None
       tar_train_sampler = None
 
-    src_dataloader = DataLoader(self.src_train_data, batch_size=self.batch_size, shuffle=src_train_sampler is None, sampler=src_train_sampler, drop_last=True)
-    tar_dataloader = DataLoader(self.tar_train_data, batch_size=self.batch_size, shuffle=tar_train_sampler is None, sampler=tar_train_sampler, drop_last=True)
+    src_dataloader = DataLoader(self.src_train_data, batch_size=self.batch_size, shuffle=src_train_sampler is None, sampler=src_train_sampler, drop_last=src_train_sampler is None)
+    tar_dataloader = DataLoader(self.tar_train_data, batch_size=self.batch_size, shuffle=tar_train_sampler is None, sampler=tar_train_sampler, drop_last=tar_train_sampler is None)
 
     return [src_dataloader, tar_dataloader]
 
@@ -97,8 +97,8 @@ class TSDataModule(pl.LightningDataModule):
       src_train_sampler = None
       tar_train_sampler = None
 
-    src_dataloader = DataLoader(self.src_train_data, batch_size=self.batch_size, shuffle=False, sampler=src_train_sampler, drop_last=True)
-    tar_dataloader = DataLoader(self.tar_train_data, batch_size=self.batch_size, shuffle=False, sampler=tar_train_sampler, drop_last=True)
+    src_dataloader = DataLoader(self.src_train_data, batch_size=self.batch_size, shuffle=False, sampler=src_train_sampler, drop_last=src_train_sampler is None)
+    tar_dataloader = DataLoader(self.tar_train_data, batch_size=self.batch_size, shuffle=False, sampler=tar_train_sampler, drop_last=tar_train_sampler is None)
 
     return [src_dataloader, tar_dataloader]
 
@@ -113,7 +113,7 @@ class TSDataModule(pl.LightningDataModule):
       src_train_sampler = None
       tar_train_sampler = None
 
-    src_dataloader = DataLoader(self.src_train_data, batch_size=self.batch_size, shuffle=False, sampler=src_train_sampler, drop_last=True)
-    tar_dataloader = DataLoader(self.tar_train_data, batch_size=self.batch_size, shuffle=False, sampler=tar_train_sampler, drop_last=True)
+    src_dataloader = DataLoader(self.src_train_data, batch_size=self.batch_size, shuffle=False, sampler=src_train_sampler, drop_last=src_train_sampler is None)
+    tar_dataloader = DataLoader(self.tar_train_data, batch_size=self.batch_size, shuffle=False, sampler=tar_train_sampler, drop_last=tar_train_sampler is None)
 
     return [src_dataloader, tar_dataloader]

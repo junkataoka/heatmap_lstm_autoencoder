@@ -118,7 +118,7 @@ class OvenLightningModule(pl.LightningModule):
         tar_loss = self.criterion(tar_y_hat, tar_y)
         b ,t, c, h, w = src_y_hat.shape
 
-        mmd_loss = MMD(src_y_hat.reshape(b, -1), tar_y_hat.reshape(b, -1), kernel="multiscale")
+        mmd_loss = MMD(src_dcl_y_hat, tar_dcl_y_hat, kernel="multiscale")
 
         avg_diff_src_src = torch.mean(torch.abs(src_y_hat - src_y))
 
@@ -133,7 +133,7 @@ class OvenLightningModule(pl.LightningModule):
         self.log("avg_diff_tar_tar", avg_diff_tar_tar.item(), on_step=False, on_epoch=True)
 
         # loss = src_loss + tar_loss + mmd_loss
-        loss = src_loss + tar_loss
+        loss = src_loss + tar_loss + mmd_loss
 
         if self.log_images:
             x_grid, y_grid, y_hat_grid = self.create_video(src_x, src_y_hat, src_y)
