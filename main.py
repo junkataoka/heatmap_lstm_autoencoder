@@ -66,7 +66,8 @@ class OvenLightningModule(pl.LightningModule):
         self.save_hyperparameters()
         self.opt = opt
         self.normalize = False
-        self.model = EncoderDecoderConvLSTM(nf=self.opt.n_hidden_dim, in_chan=4)
+        self.model1 = EncoderDecoderConvLSTM(nf=self.opt.n_hidden_dim, in_chan=4)
+        self.model2 = EncoderDecoderConvLSTM(nf=self.opt.n_hidden_dim, in_chan=4)
         self.log_images = self.opt.log_images
         self.criterion = torch.nn.MSELoss()
         self.dcl_criterion = torch.nn.NLLLoss()
@@ -74,11 +75,33 @@ class OvenLightningModule(pl.LightningModule):
         self.time_steps = self.opt.time_steps
         self.epoch = 0
         self.step = 0
+        self.alpha = torch.cuda.FloatTensor(4).fill_(1)
+        self.alpha.requires_grad_(True)
+        self.beta = torch.cuda.FloatTensor(4).fill_(0)
+        self.beta.requires_grad_(True)
 
     def load_model(self):
 
-        self.model.load_state_dict(torch.load(self.opt.model_path, map_location='cuda:0'), strict=False)
+        self.model1.load_state_dict(torch.load(self.opt.model_path, map_location='cuda:0'), strict=False)
+        self.model2.load_state_dict(torch.load(self.opt.model_path, map_location='cuda:1'), strict=False)
         print('Model Created!')
+
+    def regulization(self, model1, model2, alpha, beta):
+        loss = 0
+        for (name1, param1), (name2, param2) in zip(model1.named_parameters(), model2.named_paramters()):
+            if 'encoder_1' in name1:
+                loss += torch.norm(alpha[0] * param1 + beta[0] - param2)
+
+            if 'encoder_2' in name1:
+                loss += torch.norm(alpha[1] * param1 + beta[1] - param2)
+
+            if 'decoder_1' in name1:
+                loss += torch.norm(alpha[2] * param1 + beta[2] - param2)
+
+            if 'decoder_2' in name1:
+                loss += torch.norm(alpha[3] * param1 + beta[3] - param2)
+        return loss
+
 
     def create_video(self, x, y_hat, y):
 
@@ -131,6 +154,11 @@ class OvenLightningModule(pl.LightningModule):
         self.log("avg_diff_src_src", avg_diff_src_src.item(), on_step=False, on_epoch=True)
 
         self.log("avg_diff_tar_tar", avg_diff_tar_tar.item(), on_step=False, on_epoch=True)
+
+        for name, param in self.model.named_parameters():
+            if 'weight' in name:
+                print(name)
+                # L1_reg = L1_reg + torch.norm(param, 1)
 
         # loss = src_loss + tar_loss + mmd_loss
         loss = src_loss + tar_loss + mmd_loss
@@ -220,6 +248,7 @@ def test_trainer():
             area_err += area_diff
 
 
+
     plt.figure(figsize=(12, 8))
     plt.plot(target[0, :, :25, :25].mean((-1, -2)).cpu(), label="Target")
     plt.plot(predictions[0, :, :25, :25].mean((-1, -2)).cpu(), label="Prediction")
@@ -230,8 +259,20 @@ def test_trainer():
     plt.legend(fontsize=16)
     plt.savefig("Figure/sample.png", dpi=300, bbox_inches='tight')
 
+    plt.figure(figsize=(12, 8))
+    plt.imshow(target[0, 0, :, :].reshape((50, 50)).cpu())
+    plt.xticks([]),plt.yticks([])
+    plt.savefig("Figure/target.png", dpi=300, bbox_inches="tight")
+
+    plt.figure(figsize=(12, 8))
+    plt.imshow(inp[0, 0, :].reshape((4, 50, 50)).permute(1,2,0).cpu())
+    plt.xticks([]),plt.yticks([])
+    plt.savefig("Figure/input.png", dpi=300, bbox_inches="tight")
+
+
     step_err = step_err / len(target_loader)
     area_err = area_err / len(target_loader)
+    print(area_err.mean())
     step_err = step_err.cpu().numpy()
     area_err = area_err.cpu().numpy()
 
@@ -294,10 +335,14 @@ def run_trainer():
 
 def debug():
     model =OvenLightningModule(opt).cuda()
+    model =OvenLightningModule(opt).cuda()
+    print(model)
     model.train()
     test_inp = torch.randn((1, 15, 4, 50, 50)).cuda()
     output, feature = model(test_inp)
-    print(output.shape)
+    for name, param in model.named_parameters():
+        if 'weight' in name:
+            print(name)
 
 
 if __name__ == '__main__':

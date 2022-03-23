@@ -16,7 +16,7 @@ class args:
     num_recipe =81
     num_geom = 12
     seq_len = 15
-    num_area = 4
+    num_area = 15
     num_target_pseudo_data = 20
     seed = 0
 
