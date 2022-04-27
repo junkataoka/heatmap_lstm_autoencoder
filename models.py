@@ -30,7 +30,7 @@ class ConvLSTMCell(nn.Module):
         self.bias = bias
         self.stride = 1
 
-        self.conv = AttentionConv(in_channels=self.input_dim + self.hidden_dim,
+        self.conv = nn.Conv2d(in_channels=self.input_dim + self.hidden_dim,
                               out_channels=4 * self.hidden_dim,
                               kernel_size=self.kernel_size,
                               padding=self.padding,
