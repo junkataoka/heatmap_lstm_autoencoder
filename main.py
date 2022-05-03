@@ -20,6 +20,7 @@ from mmd import MMD
 import seaborn as sns
 import numpy as np
 from bayes_opt import BayesianOptimization
+from bayes_opt import UtilityFunction
 from bayes_opt.logger import JSONLogger
 from bayes_opt.event import Events
 
@@ -92,9 +93,10 @@ class OvenLightningModule(pl.LightningModule):
         return optimizer
 
     def load_model(self):
+        checkpoint = torch.load(self.opt.model_path)
+        self.model1.load_state_dict(checkpoint["model1"])
+        self.model2.load_state_dict(checkpoint["model2"])
 
-        self.model1.load_state_dict(torch.load(self.opt.model_path, map_location='cuda:0'), strict=False)
-        self.model2.load_state_dict(torch.load(self.opt.model_path, map_location='cuda:1'), strict=False)
         print('Model Created!')
 
 
@@ -155,8 +157,6 @@ class OvenLightningModule(pl.LightningModule):
         tar_loss = self.criterion(tar_y_hat, tar_y)
         b ,t, c, h, w = src_y_hat.shape
 
-        print(src_feat1.size())
-        print(tar_feat1.size())
         mmd_loss1 = MMD(src_feat1, tar_feat1, kernel="multiscale")
         mmd_loss2 = MMD(src_feat2, tar_feat2, kernel="multiscale")
         mmd_loss3 = MMD(src_feat3, tar_feat3, kernel="multiscale")
@@ -245,26 +245,28 @@ def test_trainer():
     oven_data = TSDataModule(opt, opt.root, opt.src_input_file, opt.src_target_file, opt.tar_input_file, opt.tar_target_file, batch_size=1)
     oven_data.setup()
     source_loader, target_loader = oven_data.test_dataloader()
-    # model.load_model()
-    model.load_state_dict(torch.load(opt.model_path, map_location='cuda:0'), strict=False)
+    model.load_model()
     model.eval()
     step_err = torch.zeros(15).cuda(0)
-    img_size = 12
-    area_err = torch.zeros((img_size, img_size)).cuda(0)
-    exp_name = "exp2"
+    h = 12
+    w = 17
+    area_err = torch.zeros((h, w)).cuda(0)
+    exp_name = "exp1"
+    steps = [33, 66, 99, 132, 171, 204, 214, 224,
+                234, 244, 254, 264, 274, 284, 294]
     for i, batch in enumerate(target_loader):
         inp, target = batch
         with torch.no_grad():
-            predictions, _, _, _, _ = model(inp, model.model1)
-            step_diff = torch.mean(torch.abs(target[:, :, :, :img_size, :img_size] - predictions[:, :, :, :img_size, :img_size]), (0,  2, 3, 4))
-            area_diff = torch.mean(torch.abs(target[:, :, :, :img_size, :img_size] - predictions[:, :, :, :img_size, :img_size]), (0,  1, 2))
+            predictions, _, _, _, _ = model(inp, model.model2)
+            step_diff = torch.mean(torch.abs(target[:, :, :, :h, :w] - predictions[:, :, :, :h, :w]), (0,  2, 3, 4))
+            area_diff = torch.mean(torch.abs(target[:, :, :, :h, :w] - predictions[:, :, :, :h, :w]), (0,  1, 2))
 
             step_err += step_diff
             area_err += area_diff
 
         plt.figure(figsize=(4, 3))
-        plt.plot(target[0, :, :, :img_size, :img_size].mean((-1, -2)).cpu(), label="Target")
-        plt.plot(predictions[0, :, :, :img_size, :img_size].mean((-1, -2)).cpu(), label="Prediction")
+        plt.plot(steps, target[0, :, :, :h, :w].mean((-1, -2)).cpu(), ".-", label="Target")
+        plt.plot(steps, predictions[0, :, :, :h, :w].mean((-1, -2)).cpu(), ",-", label="Prediction")
         plt.ylabel("Temperature")
         plt.xlabel("Time Step")
         plt.legend()
@@ -352,7 +354,9 @@ def run_trainer():
         model.load_model()
 
     trainer.fit(model, datamodule=oven_data)
-    torch.save(model.state_dict(), opt.out_model_path)
+    torch.save({"model1":model.model1.state_dict(),
+                "model2":model.model2.state_dict()
+                }, opt.out_model_path)
 
 
 def create_input(geom_num, recipes):
@@ -377,18 +381,26 @@ def create_input(geom_num, recipes):
 
 def bayesian_ops():
     model =OvenLightningModule(opt).cuda()
-    model.load_state_dict(torch.load(opt.model_path, map_location='cuda:0'), strict=False)
+    model.load_model()
+    # model.load_state_dict(torch.load(opt.model_path, map_location='cuda:0'), strict=False)
     model.eval()
-    target = torch.load("dataset/y_test.pt", map_location="cuda:0")
-    target = target[0, :]
-    target.unsqueeze_(0)
+
+    inp_target = torch.load("dataset/target_input.pt", map_location="cuda:0")
+    inp_target = inp_target[0, :]
+    inp_target.unsqueeze_(0)
+    inp_target = inp_target.type(torch.cuda.FloatTensor)
     src_mean = torch.load("dataset/source_mean.pt", map_location="cuda:0")
     src_sd = torch.load("dataset/source_sd.pt", map_location="cuda:0")
+    def GetSlope(val1, val2, t1, t2):
+        slope = (val2 - val1) / (t2 - t1)
+        return slope
 
     def black_box_function(r1, r2, r3, r4, r5, r6, r7):
 
+        steps = [33, 66, 99, 132, 171, 204, 214, 224,
+                    234, 244, 254, 264, 274, 284, 294]
         recipes = [r1, r2, r3, r4, r5, r6, r7]
-        inp = create_input(8, recipes)
+        inp = create_input(7, recipes)
         inp = inp.cuda()
         inp_normalized = (inp - src_mean + 1e-5)/(src_sd+1e-5)
         inp_normalized = inp_normalized.type(torch.cuda.FloatTensor)
@@ -396,25 +408,108 @@ def bayesian_ops():
         with torch.no_grad():
             pred, _, _, _, _ = model(inp_normalized, model.model1)
 
-        error = -(pred[:,:,:, :12, :12].mean((-1,-2)) - target[:,:,:,:12, :12].mean((-1,-2))).pow(2).sum()
-        error = np.array(error.cpu())
+        # error = -(pred[:,:,:, :12, :12].mean((-1,-2)) - target[:,:,:,:12, :12].mean((-1,-2))).pow(2).sum()
+        temp_dict = {steps[i]:pred[:, i, :, :12, :17].mean() for i in range(len(steps))}
+        tp = 244
+        ts_min = 234
+        ts_max = 254
+        tl_min = 204
+        tl_max = 294
+        tpre_min = 66
+        tpre_max =171
 
-        return error
+        # Tpre_min = temp_dict[tpre_min]
+        # Tpre_max = temp_dict[tpre_max] # This could 204
+        Ts_min = temp_dict[ts_min]
+        Ts_max = temp_dict[ts_max]
+        Tp = temp_dict[tp]
+        Tl = 217
+        Tp_cl = 240
+        flag = False
+        loss = 0
 
-    pbounds = {"r1": (110, 300), "r2": (110, 300), "r3": (110, 300), "r4":(110, 300), "r5":(110, 300), "r6": (110, 300), "r7": (110, 300)}
+        Ts_min_loss = (Tp - Ts_min > 5) * 1.0
+        Ts_max_loss = (Tp - Ts_max > 5) * 1.0
+        Tp_loss1 = (Tp > 260) * 1.0
+        Tp_loss2 = torch.norm(Tp - Tp_cl)
+        # Tpre_min_loss = torch.norm(Tpre_min - 150)
+        # Tpre_max_loss = torch.norm(200 - Tpre_min)
+
+        loss += Ts_min_loss
+        loss += Ts_max_loss
+        loss += Tp_loss1
+        loss += Tp_loss2
+        # loss += Tpre_min_loss
+        # loss += Tpre_max_loss
+
+        for i in range(len(steps)):
+            if temp_dict[steps[i]] > Tl and temp_dict[steps[i]] < Tp and steps[i] < tp  and steps[i] >= tl_min:
+
+                slope_pos = GetSlope(temp_dict[steps[i]], temp_dict[steps[i+1]], steps[i], steps[i+1])
+                slope_pos_loss = (3 < slope_pos) * 1
+                loss += slope_pos_loss
+
+            elif temp_dict[steps[i]] > Tl and temp_dict[steps[i]] < Tp and steps[i] > tp and steps[i] <= tl_max:
+
+                slope_neg = GetSlope(temp_dict[steps[i]], temp_dict[steps[i+1]], steps[i], steps[i+1])
+                slope_neg_loss = (-6 > slope_neg) * 1
+                loss += slope_neg_loss
+
+        loss = np.array(loss.cpu())
+
+        return -loss
+
+    pbounds = {"r1": (100, 120), "r2": (120, 170), "r3": (170, 190),
+               "r4":(190, 210), "r5":(240, 400), "r6": (270, 400), "r7": (290, 400)}
+
+    pbounds = {"r1": (90, 120), "r2": (120, 150), "r3": (150, 180),
+               "r4":(180, 300), "r5":(180, 300), "r6": (180, 300), "r7": (180, 300)}
 
     optimizer = BayesianOptimization(f=black_box_function,
                                      pbounds=pbounds,
                                      random_state=1)
-    logger = JSONLogger(path="./bo_logs.json")
-    optimizer.subscribe(Events.OPTIMIZATION_STEP, logger)
+    # logger = JSONLogger(path="./bo_logs.json")
+    # optimizer.subscribe(Events.OPTIMIZATION_STEP, logger)
 
     optimizer.maximize(
-        init_points=100,
-        n_iter=1000
+        acq="ei",
+        xi=0.1,
+        init_points=10,
+        n_iter=100
     )
     print(optimizer.max)
+    r1, r2, r3, r4, r5, r6, r7 = optimizer.max["params"]["r1"], \
+                                 optimizer.max["params"]["r2"], \
+                                 optimizer.max["params"]["r3"], \
+                                 optimizer.max["params"]["r4"], \
+                                 optimizer.max["params"]["r5"], \
+                                 optimizer.max["params"]["r6"], \
+                                 optimizer.max["params"]["r7"],
 
+    recipes = [r1, r2, r3, r4, r5, r6, r7]
+
+    inp = create_input(8, recipes)
+    inp = inp.cuda()
+    inp_normalized = (inp - src_mean + 1e-5)/(src_sd+1e-5)
+    inp_normalized = inp_normalized.type(torch.cuda.FloatTensor)
+    target_input = torch.load("dataset/tar_x_train.pt")
+    target_input = target_input.cuda()
+    target_input = target_input.type(torch.cuda.FloatTensor)
+    # target_target = torch.load("dataset/tar_y_train/pt")
+    steps = [33, 66, 99, 132, 171, 204, 214, 224,
+                234, 244, 254, 264, 274, 284, 294]
+
+    with torch.no_grad():
+        pred, _, _, _, _ = model(inp_normalized, model.model1)
+        pred_original, _, _, _, _ = model(target_input, model.model1)
+
+    plt.plot(steps, pred[0, :, :, :5, :5].mean((-1, -2)).cpu(), ".-", label="BO_Optimial")
+    plt.plot(steps, pred_original[0, :, :, :5, :5].mean((-1, -2)).cpu(), ".-", label="M7_ModelOutput")
+    plt.ylabel("Temperature")
+    plt.xlabel("Time Step")
+    plt.legend()
+    plt.savefig(f"Figure/BO_pred.png", dpi=300, bbox_inches='tight')
+    plt.close("all")
 
 
 if __name__ == '__main__':

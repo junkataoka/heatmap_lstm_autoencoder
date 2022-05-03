@@ -47,15 +47,15 @@ class TSDataModule(pl.LightningDataModule):
 
 
     self.train_transform = transforms.Compose([
-      transforms.Pad(2),
-      transforms.Resize(50),
+      # transforms.Pad(2),
+      transforms.Resize(50)
       # transforms.RandomCrop(50),
-      transforms.RandomHorizontalFlip(),
-      transforms.RandomVerticalFlip()
+      # transforms.RandomHorizontalFlip(),
+      # transforms.RandomVerticalFlip()
     ])
 
     self.val_transform = transforms.Compose([
-      transforms.Pad(2),
+      # transforms.Pad(2),
       transforms.Resize(50)
       # transforms.Pad(2),
       # transforms.CenterCrop(50),
