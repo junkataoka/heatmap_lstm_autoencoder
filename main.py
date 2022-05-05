@@ -182,7 +182,8 @@ class OvenLightningModule(pl.LightningModule):
         self.log("avg_diff_tar_tar", avg_diff_tar_tar.item(), on_step=False, on_epoch=True)
 
 
-        loss = src_loss + tar_loss + mmd_loss1 + mmd_loss2 + mmd_loss3 + mmd_loss4 + reg_loss
+        # loss = src_loss + tar_loss + mmd_loss1 + mmd_loss2 + mmd_loss3 + mmd_loss4 + reg_loss
+        loss = src_loss
 
         if self.log_images:
             x_grid, y_grid, y_hat_grid = self.create_video(src_x, src_y_hat, src_y)
@@ -251,7 +252,7 @@ def test_trainer():
     h = 12
     w = 17
     area_err = torch.zeros((h, w)).cuda(0)
-    exp_name = "exp1"
+    exp_name = "src"
     steps = [33, 66, 99, 132, 171, 204, 214, 224,
                 234, 244, 254, 264, 274, 284, 294]
     for i, batch in enumerate(target_loader):
@@ -391,120 +392,126 @@ def bayesian_ops():
     inp_target = inp_target.type(torch.cuda.FloatTensor)
     src_mean = torch.load("dataset/source_mean.pt", map_location="cuda:0")
     src_sd = torch.load("dataset/source_sd.pt", map_location="cuda:0")
-    def GetSlope(val1, val2, t1, t2):
-        slope = (val2 - val1) / (t2 - t1)
-        return slope
+    plt.figure(figsize=(4, 3))
+    for geom_num in range(7, 10):
 
-    def black_box_function(r1, r2, r3, r4, r5, r6, r7):
+        def GetSlope(val1, val2, t1, t2):
+            slope = (val2 - val1) / (t2 - t1)
+            return slope
 
-        steps = [33, 66, 99, 132, 171, 204, 214, 224,
-                    234, 244, 254, 264, 274, 284, 294]
-        recipes = [r1, r2, r3, r4, r5, r6, r7]
-        inp = create_input(7, recipes)
-        inp = inp.cuda()
-        inp_normalized = (inp - src_mean + 1e-5)/(src_sd+1e-5)
-        inp_normalized = inp_normalized.type(torch.cuda.FloatTensor)
+        def black_box_function(r1, r2, r3, r4, r5, r6, r7):
 
-        with torch.no_grad():
-            pred, _, _, _, _ = model(inp_normalized, model.model1)
+            steps = [33, 66, 99, 132, 171, 204, 214, 224,
+                        234, 244, 254, 264, 274, 284, 294]
+            recipes = [r1, r2, r3, r4, r5, r6, r7]
+            inp = create_input(geom_num, recipes)
+            inp = inp.cuda()
+            inp_normalized = (inp - src_mean + 1e-5)/(src_sd+1e-5)
+            inp_normalized = inp_normalized.type(torch.cuda.FloatTensor)
 
-        # error = -(pred[:,:,:, :12, :12].mean((-1,-2)) - target[:,:,:,:12, :12].mean((-1,-2))).pow(2).sum()
-        temp_dict = {steps[i]:pred[:, i, :, :12, :17].mean() for i in range(len(steps))}
-        tp = 244
-        ts_min = 234
-        ts_max = 254
-        tl_min = 204
-        tl_max = 294
-        tpre_min = 66
-        tpre_max =171
+            with torch.no_grad():
+                pred, _, _, _, _ = model(inp_normalized, model.model1)
 
-        # Tpre_min = temp_dict[tpre_min]
-        # Tpre_max = temp_dict[tpre_max] # This could 204
-        Ts_min = temp_dict[ts_min]
-        Ts_max = temp_dict[ts_max]
-        Tp = temp_dict[tp]
-        Tl = 217
-        Tp_cl = 240
-        flag = False
-        loss = 0
+            # error = -(pred[:,:,:, :12, :12].mean((-1,-2)) - target[:,:,:,:12, :12].mean((-1,-2))).pow(2).sum()
+            temp_dict = {steps[i]:pred[:, i, :, :12, :17].mean() for i in range(len(steps))}
+            tp = 244
+            ts_min = 234
+            ts_max = 254
+            tl_min = 204
+            tl_max = 294
+            tpre_min = 66
+            tpre_max =171
 
-        Ts_min_loss = (Tp - Ts_min > 5) * 1.0
-        Ts_max_loss = (Tp - Ts_max > 5) * 1.0
-        Tp_loss1 = (Tp > 260) * 1.0
-        Tp_loss2 = torch.norm(Tp - Tp_cl)
-        # Tpre_min_loss = torch.norm(Tpre_min - 150)
-        # Tpre_max_loss = torch.norm(200 - Tpre_min)
+            # Tpre_min = temp_dict[tpre_min]
+            # Tpre_max = temp_dict[tpre_max] # This could 204
 
-        loss += Ts_min_loss
-        loss += Ts_max_loss
-        loss += Tp_loss1
-        loss += Tp_loss2
-        # loss += Tpre_min_loss
-        # loss += Tpre_max_loss
+            Ts_min = temp_dict[ts_min]
+            Ts_max = temp_dict[ts_max]
+            Tp = temp_dict[tp]
+            Tl = 217
+            Tp_cl = 260
+            Tp_target = 240
+            flag = False
+            loss = 0
 
-        for i in range(len(steps)):
-            if temp_dict[steps[i]] > Tl and temp_dict[steps[i]] < Tp and steps[i] < tp  and steps[i] >= tl_min:
+            Ts_min_loss = max((Tp - Ts_min - 5, 0))
+            Ts_max_loss = max((Tp - Ts_max - 5, 0))
+            Tp_loss1 = max((Tp - Tp_cl, 0))
+            Tp_loss2 = torch.norm(Tp - Tp_target)
+            # Tpre_min_loss = torch.norm(Tpre_min - 150)
+            # Tpre_max_loss = torch.norm(200 - Tpre_min)
 
-                slope_pos = GetSlope(temp_dict[steps[i]], temp_dict[steps[i+1]], steps[i], steps[i+1])
-                slope_pos_loss = (3 < slope_pos) * 1
-                loss += slope_pos_loss
+            loss += Ts_min_loss
+            loss += Ts_max_loss
+            loss += Tp_loss1
+            loss += Tp_loss2
+            # loss += Tpre_min_loss
+            # loss += Tpre_max_loss
 
-            elif temp_dict[steps[i]] > Tl and temp_dict[steps[i]] < Tp and steps[i] > tp and steps[i] <= tl_max:
+            for i in range(len(steps)):
+                if temp_dict[steps[i]] > Tl and temp_dict[steps[i]] < Tp and steps[i] < tp  and steps[i] >= tl_min:
 
-                slope_neg = GetSlope(temp_dict[steps[i]], temp_dict[steps[i+1]], steps[i], steps[i+1])
-                slope_neg_loss = (-6 > slope_neg) * 1
-                loss += slope_neg_loss
+                    slope_pos = GetSlope(temp_dict[steps[i]], temp_dict[steps[i+1]], steps[i], steps[i+1])
+                    slope_pos_loss = max((slope_pos-3, 0))
+                    loss += slope_pos_loss
 
-        loss = np.array(loss.cpu())
+                elif temp_dict[steps[i]] > Tl and temp_dict[steps[i]] < Tp and steps[i] > tp and steps[i] <= tl_max:
 
-        return -loss
+                    slope_neg = GetSlope(temp_dict[steps[i]], temp_dict[steps[i+1]], steps[i], steps[i+1])
+                    slope_neg_loss = max((-slope_neg-6, 0))
+                    loss += slope_neg_loss
 
-    pbounds = {"r1": (100, 120), "r2": (120, 170), "r3": (170, 190),
-               "r4":(190, 210), "r5":(240, 400), "r6": (270, 400), "r7": (290, 400)}
+            loss = np.array(loss.cpu())
 
-    pbounds = {"r1": (90, 120), "r2": (120, 150), "r3": (150, 180),
-               "r4":(180, 300), "r5":(180, 300), "r6": (180, 300), "r7": (180, 300)}
+            return -loss
 
-    optimizer = BayesianOptimization(f=black_box_function,
-                                     pbounds=pbounds,
-                                     random_state=1)
+        # pbounds = {"r1": (100, 120), "r2": (120, 170), "r3": (170, 190),
+        #            "r4":(190, 210), "r5":(240, 400), "r6": (270, 400), "r7": (290, 400)}
+
+        pbounds = {"r1": (96, 150), "r2": (150, 175), "r3": (175, 200),
+                   "r4":(200, 217), "r5":(217, 260), "r6": (217, 260), "r7": (96, 217)}
+
+        optimizer = BayesianOptimization(f=black_box_function,
+                                         pbounds=pbounds,
+                                         random_state=1)
     # logger = JSONLogger(path="./bo_logs.json")
     # optimizer.subscribe(Events.OPTIMIZATION_STEP, logger)
 
-    optimizer.maximize(
-        acq="ei",
-        xi=0.1,
-        init_points=10,
-        n_iter=100
-    )
-    print(optimizer.max)
-    r1, r2, r3, r4, r5, r6, r7 = optimizer.max["params"]["r1"], \
-                                 optimizer.max["params"]["r2"], \
-                                 optimizer.max["params"]["r3"], \
-                                 optimizer.max["params"]["r4"], \
-                                 optimizer.max["params"]["r5"], \
-                                 optimizer.max["params"]["r6"], \
-                                 optimizer.max["params"]["r7"],
+        optimizer.maximize(
+            acq="ei",
+            xi=0.1,
+            init_points=10,
+            n_iter=100
+        )
+        print(optimizer.max)
+        r1, r2, r3, r4, r5, r6, r7 = optimizer.max["params"]["r1"], \
+                                     optimizer.max["params"]["r2"], \
+                                     optimizer.max["params"]["r3"], \
+                                     optimizer.max["params"]["r4"], \
+                                     optimizer.max["params"]["r5"], \
+                                     optimizer.max["params"]["r6"], \
+                                     optimizer.max["params"]["r7"],
 
-    recipes = [r1, r2, r3, r4, r5, r6, r7]
+        recipes = [r1, r2, r3, r4, r5, r6, r7]
 
-    inp = create_input(8, recipes)
-    inp = inp.cuda()
-    inp_normalized = (inp - src_mean + 1e-5)/(src_sd+1e-5)
-    inp_normalized = inp_normalized.type(torch.cuda.FloatTensor)
-    target_input = torch.load("dataset/tar_x_train.pt")
-    target_input = target_input.cuda()
-    target_input = target_input.type(torch.cuda.FloatTensor)
-    # target_target = torch.load("dataset/tar_y_train/pt")
-    steps = [33, 66, 99, 132, 171, 204, 214, 224,
-                234, 244, 254, 264, 274, 284, 294]
+        inp = create_input(geom_num, recipes)
+        inp = inp.cuda()
+        inp_normalized = (inp - src_mean + 1e-5)/(src_sd+1e-5)
+        inp_normalized = inp_normalized.type(torch.cuda.FloatTensor)
+        target_input = torch.load("dataset/tar_x_train.pt")
+        target_input = target_input.cuda()
+        target_input = target_input.type(torch.cuda.FloatTensor)
+        # target_target = torch.load("dataset/tar_y_train/pt")
+        steps = [33, 66, 99, 132, 171, 204, 214, 224,
+                    234, 244, 254, 264, 274, 284, 294]
 
-    with torch.no_grad():
-        pred, _, _, _, _ = model(inp_normalized, model.model1)
-        pred_original, _, _, _, _ = model(target_input, model.model1)
+        with torch.no_grad():
+            pred, _, _, _, _ = model(inp_normalized, model.model1)
+            pred_original, _, _, _, _ = model(target_input, model.model1)
 
-    plt.plot(steps, pred[0, :, :, :5, :5].mean((-1, -2)).cpu(), ".-", label="BO_Optimial")
-    plt.plot(steps, pred_original[0, :, :, :5, :5].mean((-1, -2)).cpu(), ".-", label="M7_ModelOutput")
+        plt.plot(steps, pred[0, :, :, :5, :5].mean((-1, -2)).cpu(), ".-", label=f"M{geom_num}_BO_Optimial")
+        # plt.plot(steps, pred_original[0, :, :, :5, :5].mean((-1, -2)).cpu(), ".-", label="M7_ModelOutput")
+
     plt.ylabel("Temperature")
     plt.xlabel("Time Step")
     plt.legend()
