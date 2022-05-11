@@ -136,14 +136,14 @@ def generate_heatmap(die, subtrate, pcb, recipe_num, board_num):
         df = pd.DataFrame(img[:, :, i])
         df.to_csv(f"Output_Experiment/IMG_{board_num}_{recipe_num}_{i+1}.csv", index=False, header=False)
 
-generate_heatmap(die_M9, subtrate_M9, pcb_M9, 84, 9)
-generate_heatmap(die_M8, subtrate_M8, pcb_M8, 83, 8)
-generate_heatmap(die_M7, subtrate_M7, pcb_M7, 82, 7)
+generate_heatmap(die_M9, subtrate_M9, pcb_M9, 84, 1)
+generate_heatmap(die_M8, subtrate_M8, pcb_M8, 83, 1)
+generate_heatmap(die_M7, subtrate_M7, pcb_M7, 82, 1)
 
 
 # %%
 
-df = pd.read_csv("Output_Experiment/IMG_9_84_5.csv")
+df = pd.read_csv("Output_Experiment/IMG_1_84_5.csv")
 plt.figure(figsize=(4,4))
 plt.imshow(df)
 plt.savefig("heatmap.png", dpi=300, bbox_inches="tight")

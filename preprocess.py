@@ -64,7 +64,7 @@ def generate_target_target(root, num_recipe, seq_len, num_geom, left_geom, left_
     out = np.empty((num_recipe, seq_len, 1, 50, 50))
     for i in range(num_recipe):
         for j in range(seq_len):
-            target_path = f"IMG_{i+left_geom}_{i+left_recipe}_{j+1}.csv"
+            target_path = f"IMG_{left_geom}_{i+left_recipe}_{j+1}.csv"
             img = np.genfromtxt(os.path.join(root, target_path), delimiter=",")
             img = img[np.newaxis, ...]
             out[i, j, :, :, :] = img
@@ -76,9 +76,9 @@ def generate_target_input(root, num_recipe, num_area, num_geom, left_geom, left_
 
     for i in range(num_recipe):
         for j in range(num_area):
-            die_path = f"M{i+left_geom}_DIE.csv"
-            pcb_path = f"M{i+left_geom}_PCB.csv"
-            trace_path = f"M{i+left_geom}_Substrate.csv"
+            die_path = f"M{left_geom}_DIE.csv"
+            pcb_path = f"M{left_geom}_PCB.csv"
+            trace_path = f"M{left_geom}_Substrate.csv"
             recipe_path = f"recipe_{i+left_recipe}_{j+1}.csv"
             die_img = np.genfromtxt(os.path.join(root, die_path), delimiter=",")
             pcb_img = np.genfromtxt(os.path.join(root, pcb_path), delimiter=",")
@@ -114,7 +114,7 @@ torch.save(mean, "./dataset/source_mean.pt")
 torch.save(sd, "./dataset/source_sd.pt")
 #%%
 print("Generating target input data")
-a = generate_target_input("./INPUT_Experiment", num_recipe=args.num_recipe_tar, num_area=args.num_area, num_geom=args.num_geom_tar, left_geom=7, left_recipe=82)
+a = generate_target_input("./INPUT_Experiment", num_recipe=args.num_recipe_tar, num_area=args.num_area, num_geom=args.num_geom_tar, left_geom=1, left_recipe=82)
 input_tensor = torch.tensor(a).cuda()
 # input_tensor = input_tensor.permute(0,2,1,3,4,5)
 # input_tensor = input_tensor.reshape(args.num_recipe_tar*args.num_geom_tar, args.num_area, 4, 50, 50)
@@ -125,7 +125,7 @@ torch.save(input_tensor_normalized, "./dataset/target_input.pt")
 
 #%%
 print("Generating target target data")
-a = generate_target_target("./Output_Experiment", num_recipe=args.num_recipe_tar, seq_len=args.seq_len, num_geom=args.num_geom_tar, left_geom=7, left_recipe=82)
+a = generate_target_target("./Output_Experiment", num_recipe=args.num_recipe_tar, seq_len=args.seq_len, num_geom=args.num_geom_tar, left_geom=1, left_recipe=82)
 target_tensor = torch.tensor(a).cuda() - 273.15
 # target_tensor = target_tensor.permute(0,2,1,3,4,5)
 # target_tensor = target_tensor.reshape(args.num_recipe_tar*args.num_geom_tar, args.seq_len, 1, 50, 50) - 273.15
