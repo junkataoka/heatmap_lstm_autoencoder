@@ -42,7 +42,7 @@ parser.add_argument('--src_input_file', type=str, default="source_input.pt")
 parser.add_argument('--src_target_file', type=str, default="source_target.pt")
 parser.add_argument('--tar_input_file', type=str, default="target_input.pt")
 parser.add_argument('--tar_target_file', type=str, default="sp_target_target.pt")
-parser.add_argument('--time_steps', type=int, default=15)
+parser.add_argument('--time_steps', type=int, default=7)
 
 parser.add_argument('--model_path', type=str, default="checkpoints/lstm_ac.ckpt")
 parser.add_argument('--out_model_path', type=str, default="checkpoints/lstm_ac.ckpt")

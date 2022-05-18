@@ -19,4 +19,4 @@
 python main.py --n_gpus=1 --num_nodes=1 --batch_size=1 --epochs=50 --neptune_logger --lr=0.001 \
 			--src_input_file=source_input.pt --src_target_file=source_target.pt \
 			--tar_input_file=tar_x_train.pt --tar_target_file=tar_y_train.pt \
-			--model_path checkpoints/lstm_ac_reg_mmd_exp4.ckpt --out_model_path checkpoints/lstm_ac_reg_mmd_exp4.ckpt --run_type bo
+			--model_path checkpoints/lstm_ac_reg_mmd_exp4.ckpt --out_model_path checkpoints/lstm_ac_reg_mmd_exp4.ckpt

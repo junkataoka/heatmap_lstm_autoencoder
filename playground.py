@@ -39,21 +39,15 @@ recipe_num = 81
 temps = [120, 150, 180]
 sample = pd.read_csv("INPUT/recipe_81_7.csv", header=None)
 #%%
-for ind in range(recipe_num):
-    for t in range(len(temps)):
-        file_name = f"INPUT/recipe_{ind+1}_{t+1}.csv"
-        sample.iloc[:, :] = temps[t]
-        sample.to_csv(file_name, index=False, header=False)
-#%%
 num_add_recipe = 3
 recipe_list = { "M7":[105, 130, 160, 190, 230, 270, 290],
                "M8":[110, 140, 170, 200, 240, 280, 290],
                 "M9":[120, 150, 180, 220, 260, 280, 300]}
 
-c = 1
+c = 0
 for key, val in recipe_list.items():
     for t in range(len(val)):
-        file_name = f"INPUT_Experiment/recipe_{c + recipe_num}_{t+1}.csv"
+        file_name = f"INPUT_Experiment/recipe_{c + 1}_{t+1}.csv"
         sample.iloc[:, :] = val[t]
         sample.to_csv(file_name, index=False, header=False)
     c += 1
@@ -68,7 +62,7 @@ area_length = 7
 for i in range(recipe_num):
     res = []
     for j in range(area_length):
-        fname = f"INPUT/recipe_{i+1}_{j+1}.csv"
+        fname = f"recipe_experiment/recipe_{i+1}_{j+1}.csv"
         print(fname)
         df_temp = pd.read_csv(fname, index_col=0)
         val = df_temp.iloc[0, 0]
@@ -89,21 +83,11 @@ for i in range(15):
 len(pcb_temp)
 # %%
 data = pd.read_csv("experiment_20220323.csv")
-# %%
 result = []
 result = [33, 66, 99, 132, 171, 204, 214, 224,
             234, 244, 254, 264, 274, 284, 294]
 
 result = [i * 2 for i in result]
-
-# p = 0
-# for temp in pcb_temp:
-#     arr = np.zeros(601) + 1e+6
-#     diff = np.abs(data["M9_board"] - temp)
-#     arr[p:] = diff[p:]
-#     ind = np.argmin(arr)
-#     result.append(ind)
-#     p = ind
 
 # %%
 small_data = data.iloc[result, :]
@@ -146,11 +130,11 @@ def generate_heatmap(die, subtrate, pcb, recipe_num, board_num):
 
     for i in range(15):
         df = pd.DataFrame(img[:, :, i])
-        df.to_csv(f"Output_Experiment/IMG_{board_num}_{recipe_num}_{i+1}.csv", index=False, header=False)
+        df.to_csv(f"heatmap_experiment/IMG_{board_num}_{recipe_num}_{i+1}.csv", index=False, header=False)
 
-generate_heatmap(die_M9, subtrate_M9, pcb_M9, 84, 1)
-generate_heatmap(die_M8, subtrate_M8, pcb_M8, 83, 1)
-generate_heatmap(die_M7, subtrate_M7, pcb_M7, 82, 1)
+generate_heatmap(die_M7, subtrate_M7, pcb_M7, 1, 1)
+generate_heatmap(die_M8, subtrate_M8, pcb_M8, 2, 1)
+generate_heatmap(die_M9, subtrate_M9, pcb_M9, 3, 1)
 
 
 # %%
