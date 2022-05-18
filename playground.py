@@ -8,6 +8,18 @@ import matplotlib.pyplot as plt
 from collections import defaultdict
 import seaborn as sns
 #%%
+df = pd.read_csv("temp/BO_test_result.csv")
+plt.figure(figsize=(4, 3))
+plt.plot(df.Step, df.SATA4, ".-", label=f"Measurement")
+plt.plot(df.Step, df.BO, ".-", label=f"BO")
+plt.ylabel("Temperature")
+plt.xlabel("Time Step")
+plt.legend()
+plt.savefig(f"Figure/BO_comparison.png", dpi=300, bbox_inches='tight')
+plt.close("all")
+
+# plt.fidf.SATA4
+#%%
 df = pd.read_json("bo_logs.json", lines=True)
 df.params.iloc[df.target.argmin()]
 
