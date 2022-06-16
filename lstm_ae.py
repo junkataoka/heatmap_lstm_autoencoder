@@ -48,7 +48,9 @@ class EncoderDecoderConvLSTM(nn.Module):
                                      kernel_size=(1, 3, 3),
                                      padding=(0, 1, 1))
 
-        self.Linear = nn.Linear(17500, 7)
+        self.Linear1 = nn.Linear(17500, 600)
+        self.Linear2 = nn.Linear(600, 7)
+        self.relu = nn.ReLU(inplace=True)
 
     def autoencoder(self, x, seq_len, future_step, h_t, c_t, h_t2, c_t2, h_t3, c_t3, h_t4, c_t4):
 
@@ -93,10 +95,11 @@ class EncoderDecoderConvLSTM(nn.Module):
         output_enc1, output_enc2, output_dec1, outputs = output_enc1.permute(0,2,1,3,4), output_enc2.permute(0,2,1,3,4), output_dec1.permute(0,2,1,3,4), outputs.permute(0,2,1,3,4)
 
         outputs_last = self.decoder_CNN(outputs)
-        outputs_last = outputs_last.permute(0, 2, 1, 3, 4)
+        # outputs_last = outputs_last.permute(0, 2, 1, 3, 4)
         outputs_last = outputs_last.view((b, -1))
-        pred = self.Linear(outputs_last)
-
+        pred = self.Linear1(outputs_last)
+        pred = self.relu(pred)
+        pred = self.Linear2(pred)
 
         return pred, h_t, h_t2, h_t3, outputs
 

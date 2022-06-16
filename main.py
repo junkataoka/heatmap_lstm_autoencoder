@@ -52,6 +52,7 @@ parser.add_argument('--api_key', type=str,
                     default="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiIwOTE0MGFjYy02NzMwLTRkODQtYTU4My1lNjk0YWEzODM3MGIifQ==")
 
 parser.add_argument('--run_type', type=str, default="train")
+parser.add_argument('--source_only', action="store_true", help="Wether training model using source only or not")
 
 opt = parser.parse_args()
 print(opt)
@@ -136,12 +137,8 @@ class OvenLightningModule(pl.LightningModule):
         src_y_hat, src_feat1, src_feat2, src_feat3, src_feat4 = self.forward(src_x, self.model1)
         tar_y_hat, tar_feat1, tar_feat2, tar_feat3, tar_feat4 = self.forward(tar_x, self.model2)
 
-        src_label = torch.zeros(src_x.shape[0]).long().cuda()
-        tar_label = torch.ones(tar_x.shape[0]).long().cuda()
-
         src_loss = self.criterion(src_y_hat, src_y)
         tar_loss = self.criterion(tar_y_hat, tar_y)
-        b ,t, c, h, w = src_y_hat.shape
 
         mmd_loss1 = MMD(src_feat1, tar_feat1, kernel="multiscale")
         mmd_loss2 = MMD(src_feat2, tar_feat2, kernel="multiscale")
@@ -168,8 +165,11 @@ class OvenLightningModule(pl.LightningModule):
         self.log("avg_diff_tar_tar", avg_diff_tar_tar.item(), on_step=False, on_epoch=True)
 
 
-        loss = src_loss + tar_loss + mmd_loss1 + mmd_loss2 + mmd_loss3 + mmd_loss4 + reg_loss
-        # loss = src_loss
+        if self.opt.source_only:
+            loss = src_loss
+
+        else:
+            loss = src_loss + tar_loss + mmd_loss1 + mmd_loss2 + mmd_loss3 + mmd_loss4 + reg_loss
 
         return loss
 
@@ -180,75 +180,33 @@ def test_trainer():
     source_loader, target_loader = oven_data.test_dataloader()
     model.load_model()
     model.eval()
-    step_err = torch.zeros(15).cuda(0)
-    h = 12
-    w = 17
-    area_err = torch.zeros((h, w)).cuda(0)
-    exp_name = "src"
-    steps = [33, 66, 99, 132, 171, 204, 214, 224,
-                234, 244, 254, 264, 274, 284, 294]
     for i, batch in enumerate(target_loader):
         inp, target = batch
         with torch.no_grad():
-            predictions, _, _, _, _ = model(inp, model.model2)
-            step_diff = torch.mean(torch.abs(target[:, :, :, :h, :w] - predictions[:, :, :, :h, :w]), (0,  2, 3, 4))
-            area_diff = torch.mean(torch.abs(target[:, :, :, :h, :w] - predictions[:, :, :, :h, :w]), (0,  1, 2))
+            if opt.source_only:
+                predictions, _, _, _, _ = model(inp, model.model1)
+            else:
+                predictions, _, _, _, _ = model(inp, model.model2)
 
-            step_err += step_diff
-            area_err += area_diff
 
         plt.figure(figsize=(4, 3))
-        plt.plot(steps, target[0, :, :, :h, :w].mean((-1, -2)).cpu(), ".-", label="Target")
-        plt.plot(steps, predictions[0, :, :, :h, :w].mean((-1, -2)).cpu(), ",-", label="Prediction")
+        plt.plot([i+1 for i in range(target.shape[1])], target.view(-1).cpu(), ".-", label="Target")
+        plt.plot([i+1 for i in range(target.shape[1])], predictions.view(-1).cpu(), ".-", label="Prediction")
         plt.ylabel("Temperature")
-        plt.xlabel("Time Step")
+        plt.xlabel("Area")
         plt.legend()
-        plt.savefig(f"Figure/sample{i}_{exp_name}.png", dpi=300, bbox_inches='tight')
+        model_name = opt.model_path.split("/")[-1]
+        model_name = model_name.split(".")[0]
+        plt.savefig(f"Figure/sample{i+1}_{model_name}.png", dpi=300, bbox_inches='tight')
         plt.close("all")
-
-        for k in range(inp.shape[1]):
-
-            plt.figure(figsize=(4, 3))
-            plt.imshow(inp[0, k, :-1].permute(1,2,0).cpu())
-            plt.xticks([]),plt.yticks([])
-            plt.savefig(f"Figure/input_sample{i}_t{k}_{exp_name}.png", dpi=300, bbox_inches="tight")
-            plt.close("all")
-
-        for j in range(target.shape[1]):
-
-            plt.figure(figsize=(4, 3))
-            plt.imshow(target[0, j, :, :, :].reshape((50, 50)).cpu())
-            plt.xticks([]),plt.yticks([])
-            plt.savefig(f"Figure/target_sample{i}_t{j}_{exp_name}.png", dpi=300, bbox_inches="tight")
-
-            plt.figure(figsize=(4, 3))
-            plt.imshow(predictions[0, j, :, :, :].reshape((50, 50)).cpu())
-            plt.xticks([]),plt.yticks([])
-            plt.savefig(f"Figure/pred_sample{i}_t{j}_{exp_name}.png", dpi=300, bbox_inches="tight")
-            plt.close("all")
-
-    step_err = step_err / len(target_loader)
-    area_err = area_err / len(target_loader)
-    step_err = step_err.cpu().numpy()
-    area_err = area_err.cpu().numpy()
-
-    plt.figure(figsize=(4, 3))
-    sns.set(font_scale=2)
-    sns.heatmap(area_err)
-    plt.xticks([]),plt.yticks([])
-    plt.savefig(f"Figure/area_error_{exp_name}.png", dpi=300)
-    plt.close("all")
-    plt.figure(figsize=(12, 8))
-    plt.bar(torch.arange(1,16), step_err)
-    plt.ylabel("Mean Aboslute Difference", fontsize=16)
-    plt.yticks(fontsize=16)
-    plt.xlabel("Time Step", fontsize=16)
-    plt.xticks(fontsize=16)
-    plt.savefig(f"Figure/step_error_{exp_name}.png", dpi=300)
-    plt.close("all")
+        err = torch.norm(target-predictions)
+        print(f"{model_name} predictions:", predictions.view(-1))
+        print(f"{model_name} target:", target.view(-1))
+        print(f"{model_name} error:", err)
 
 def val_best_recipes():
     model =OvenLightningModule(opt).cuda()
+
     model.eval()
     oven_data = TSDataModule(opt, opt.root, opt.src_input_file, opt.src_target_file, opt.tar_input_file, opt.tar_target_file, batch_size=1)
     oven_data.setup()
@@ -292,22 +250,22 @@ def run_trainer():
                 }, opt.out_model_path)
 
 
-def create_input(geom_num, recipes):
+def create_input(geom_root, heatmap_root, geom_num, seq_len):
 
-    root = "INPUT"
     die_path = f"M{geom_num}_DIE.csv"
     pcb_path = f"M{geom_num}_PCB.csv"
     trate_path = f"M{geom_num}_Substrate.csv"
-    out = np.empty((1, len(recipes), 4, 50, 50))
-    die_img = np.genfromtxt(os.path.join(root, die_path), delimiter=",")
-    pcb_img = np.genfromtxt(os.path.join(root, pcb_path), delimiter=",")
-    trace_img = np.genfromtxt(os.path.join(root, trate_path), delimiter=",")
-    recipe_img = np.zeros_like(die_img)
-    for i in range(len(recipes)):
-        recipe_img[:, :] = recipes[i]
+    out = np.empty((1, len(seq_len), 4, 50, 50))
+    die_img = np.genfromtxt(os.path.join(geom_root, die_path), delimiter=",")
+    pcb_img = np.genfromtxt(os.path.join(geom_root, pcb_path), delimiter=",")
+    trace_img = np.genfromtxt(os.path.join(geom_root, trate_path), delimiter=",")
+    for i in range(len(seq_len)):
+        heatmap_img = np.genfromtxt(os.path.join(heatmap_root, trate_path), delimiter=",")
+        heatmap_path = f"IMG_{geom_num}_1_{i+1}.csv"
         arr = np.concatenate([die_img[np.newaxis, ...], pcb_img[np.newaxis, ...],
-                        trace_img[np.newaxis, ...], recipe_img[np.newaxis, ...]], axis=0)
+                        trace_img[np.newaxis, ...], heatmap_img[np.newaxis, ...]], axis=0)
         out[0, i,  :, :, :] = arr
+
     inp = torch.tensor(out)
     return inp
 
