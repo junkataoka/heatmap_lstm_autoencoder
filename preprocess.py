@@ -52,6 +52,8 @@ def generate_input(root_geom, root_heatmap, seq_len, num_geom, num_recipe):
                 pcb_img = np.genfromtxt(os.path.join(root_geom, pcb_path), delimiter=",")
                 trace_img = np.genfromtxt(os.path.join(root_geom, trace_path), delimiter=",")
                 heatmap_img = np.genfromtxt(os.path.join(root_heatmap, heatmap_path), delimiter=",")
+                # Crop heatmap image
+                heatmap_img[12:, 17:] = 0.0
 
                 arr = np.concatenate([die_img[np.newaxis, ...], pcb_img[np.newaxis, ...],
                                 trace_img[np.newaxis, ...], heatmap_img[np.newaxis, ...]], axis=0)
