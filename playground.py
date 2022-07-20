@@ -79,20 +79,16 @@ import pandas as pd
 import matplotlib.pyplot as plt
 #%% Generate pictures from lab experiment domain
 solder_temp = []
-pcb_temp = []
-sub_temp = []
-for i in range(1, 16):
-    df = pd.read_csv(f"heatmap_experiment/IMG_1_1_{i}.csv", header=None)
-    solder_temp.append(df.iloc[0, 0] - 272.15)
-    pcb_temp.append(df.iloc[0, 20] - 272.15)
-    sub_temp.append(df.iloc[0, 28] - 272.15)
-plt.plot(solder_temp, label="solder")
-plt.plot(pcb_temp, label="pcb")
-plt.plot(sub_temp, label="substrate")
-plt.xlabel("Time step")
-plt.ylabel("Temperature")
-plt.legend()
-plt.show()
+for j in range(1, 4):
+    for i in range(1, 16):
+        df = pd.read_csv(f"heatmap_experiment/IMG_1_1_{i}.csv", header=None)
+        solder_temp.append(df.iloc[0, 0] - 272.15)
+    plt.figure(figsize=(4,3))
+    plt.plot([i for i in range(1, 16)], solder_temp, label="temperature profile")
+    plt.xlabel("Time step")
+    plt.ylabel("Temperature")
+    plt.legend()
+    plt.savefig(f"Figure/profile_cv{j}.png", dpi=300, bbox_inches='tight')
 
 # %% Generate plot for validation
 solder_temp = []
@@ -109,3 +105,8 @@ plt.plot(sub_temp, label="substrate")
 plt.legend()
 
 # %%
+df = pd.read_csv(f"heatmap_experiment/IMG_1_2_1.csv", header=None)
+plt.imshow(df)
+#%%
+df = pd.read_csv(f"heatmap_simulation/IMG_1_2_1.csv", header=None)
+plt.imshow(df)
